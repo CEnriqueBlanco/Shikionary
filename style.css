@@ -478,6 +478,68 @@ body {
     color: var(--accent-red);
 }
 
+.definitions-section h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.definitions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.definition-item {
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    padding: 10px 15px;
+    border: 1px solid var(--border-color);
+}
+
+.definition-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.definition-pos {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background-color: var(--bg-secondary);
+    color: var(--accent-red);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.definition-desc {
+    font-size: 0.9rem;
+    color: var(--text-main);
+    line-height: 1.4;
+}
+
+.definition-syns {
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.definition-syn-tag {
+    background-color: var(--bg-secondary);
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 4px;
+    display: inline-block;
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+
 .examples-list {
     list-style: none;
     display: flex;

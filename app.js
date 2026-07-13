@@ -41,6 +41,8 @@ const btnAudio = document.getElementById('btn-audio');
 const audioPronunciation = document.getElementById('audio-pronunciation');
 const resultWordEs = document.getElementById('result-word-es');
 const examplesList = document.getElementById('examples-list');
+const definitionsSection = document.getElementById('definitions-section');
+const definitionsList = document.getElementById('definitions-list');
 const saveSectionSelect = document.getElementById('save-section-select');
 const btnSaveWord = document.getElementById('btn-save-word');
 const searchSuggestions = document.getElementById('search-suggestions');
@@ -594,9 +596,129 @@ function getStructuredTemplates(word, partOfSpeech, tense = 'present') {
     }
 }
 
+// Helper to capitalize string
+function capitalize(str) {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// Transform sentence using compromise.js
+function transformSentenceNLP(sentence, tense) {
+    if (typeof nlp === 'undefined') {
+        console.warn('compromise.js is not loaded');
+        return null;
+    }
+    
+    try {
+        let cleanSentence = sentence.trim().replace(/\.$/, '');
+        let doc = nlp(cleanSentence);
+        
+        // 1. Change Tense
+        if (tense === 'past') {
+            doc.verbs().toPastTense();
+        } else if (tense === 'future') {
+            doc.verbs().toFutureTense();
+        } else {
+            doc.verbs().toPresentTense();
+        }
+        
+        let affirmative = doc.text();
+        
+        // 2. Generate Negative
+        let negDoc = nlp(affirmative);
+        negDoc.sentences().toNegative();
+        let negative = negDoc.text();
+        
+        // 3. Generate Interrogative
+        let question = makeQuestionNLP(affirmative, tense);
+        
+        return {
+            affirmative: capitalize(affirmative.trim() + "."),
+            negative: capitalize(negative.trim() + "."),
+            interrogative: capitalize(question.trim())
+        };
+    } catch (err) {
+        console.error('Error in NLP sentence transformation:', err);
+        return null;
+    }
+}
+
+// Generate Question structure based on auxiliary verbs and NLP analysis
+function makeQuestionNLP(sentence, tense) {
+    let cleanSentence = sentence.trim().replace(/\.$/, '');
+    let doc = nlp(cleanSentence);
+    let words = cleanSentence.split(/\s+/);
+    if (words.length === 0) return sentence + "?";
+    
+    const auxVerbs = ["is", "am", "are", "was", "were", "will", "would", "should", "could", "can", "have", "has", "had", "do", "does", "did"];
+    
+    let auxIndex = -1;
+    let foundAux = null;
+    for (let i = 0; i < words.length; i++) {
+        let normalizedWord = words[i].toLowerCase().replace(/[^a-z]/g, '');
+        if (auxVerbs.includes(normalizedWord)) {
+            foundAux = words[i];
+            auxIndex = i;
+            break;
+        }
+    }
+    
+    if (foundAux && auxIndex !== -1) {
+        let rest = words.filter((_, idx) => idx !== auxIndex);
+        return `${capitalize(foundAux)} ${rest.join(' ')}?`;
+    }
+    
+    let verbText = "";
+    try {
+        let verbList = doc.verbs().json();
+        if (verbList && verbList.length > 0) {
+            verbText = verbList[0].text;
+        }
+    } catch (e) {}
+    
+    let aux = "Do";
+    if (tense === 'past') {
+        aux = "Did";
+    } else {
+        if (verbText && verbText.toLowerCase().endsWith('s') && !verbText.toLowerCase().endsWith('ss')) {
+            aux = "Does";
+        }
+    }
+    
+    if (verbText) {
+        let baseVerb = verbText;
+        try {
+            baseVerb = nlp(verbText).verbs().toInfinitive().text() || verbText;
+        } catch (e) {}
+        
+        let verbIdx = words.findIndex(w => w.toLowerCase().replace(/[^a-z]/g, '') === verbText.toLowerCase().replace(/[^a-z]/g, ''));
+        if (verbIdx !== -1) {
+            words[verbIdx] = baseVerb;
+        }
+    }
+    
+    return `${aux} ${words.join(' ')}?`;
+}
+
 // Generate examples array and translate them in real-time
-async function generateAndTranslateExamples(word, partOfSpeech, tense) {
-    const templates = getStructuredTemplates(word, partOfSpeech, tense);
+async function generateAndTranslateExamples(word, partOfSpeech, tense, baseSentence = null) {
+    let templates = [];
+    
+    if (baseSentence) {
+        const transformed = transformSentenceNLP(baseSentence, tense);
+        if (transformed) {
+            templates = [
+                { type: 'Afirmativo', en: transformed.affirmative },
+                { type: 'Negativo', en: transformed.negative },
+                { type: 'Interrogativo', en: transformed.interrogative }
+            ];
+        }
+    }
+    
+    if (templates.length === 0) {
+        templates = getStructuredTemplates(word, partOfSpeech, tense);
+    }
+    
     let examples = [];
     
     for (const temp of templates) {
@@ -627,7 +749,7 @@ async function changeTenseForActiveWord(tense) {
     
     examplesList.innerHTML = '<li style="border-left: none; text-align: center; background: none; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Generando ejemplos en ' + (tense === 'present' ? 'presente' : tense === 'past' ? 'pasado' : 'futuro') + '...</li>';
     
-    const examples = await generateAndTranslateExamples(activeWordData.wordEn, activeWordData.partOfSpeech, tense);
+    const examples = await generateAndTranslateExamples(activeWordData.wordEn, activeWordData.partOfSpeech, tense, activeWordData.baseSentence);
     activeWordData.examples = examples;
     renderActiveWordExamples();
 }
@@ -676,6 +798,8 @@ async function translateWord(word) {
         let audioUrl = '';
         let partOfSpeech = 'noun';
         let realExamples = [];
+        let baseSentence = null;
+        let meanings = [];
 
         if (activeSearchMode === 'word' && !word.includes(' ')) {
             const dictUrl = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
@@ -699,9 +823,17 @@ async function translateWord(word) {
                     }
                 }
                 
-                // Get first part of speech
+                // Get first part of speech and meanings
                 if (entry.meanings && entry.meanings.length > 0) {
                     partOfSpeech = entry.meanings[0].partOfSpeech || 'noun';
+                    
+                    meanings = entry.meanings.map(m => {
+                        return {
+                            partOfSpeech: m.partOfSpeech || '',
+                            definitions: m.definitions ? m.definitions.map(d => d.definition).slice(0, 2) : [],
+                            synonyms: m.synonyms || []
+                        };
+                    });
                 }
                 
                 // Extract real examples from Dictionary API
@@ -730,6 +862,11 @@ async function translateWord(word) {
                         seen.add(norm);
                         uniqueRawExamples.push(ex);
                     }
+                }
+                
+                // Set first real example as the base sentence for dynamic transformations
+                if (uniqueRawExamples.length > 0) {
+                    baseSentence = uniqueRawExamples[0].en;
                 }
                 
                 // Translate first 3 examples in parallel
@@ -761,7 +898,7 @@ async function translateWord(word) {
         }
 
         // Generate customized examples for all tenses to ensure Affirmative/Negative/Interrogative consistency
-        const examples = await generateAndTranslateExamples(word, partOfSpeech, activeTense);
+        const examples = await generateAndTranslateExamples(word, partOfSpeech, activeTense, baseSentence);
 
         // Set the active word data
         activeWordData = {
@@ -770,8 +907,10 @@ async function translateWord(word) {
             phonetic: phoneticText,
             audio: audioUrl,
             partOfSpeech: partOfSpeech,
+            baseSentence: baseSentence,
             examples: examples,
-            realExamples: realExamples
+            realExamples: realExamples,
+            meanings: meanings
         };
 
         // Render result card
@@ -798,6 +937,38 @@ function displayResult(data) {
     } else {
         audioPronunciation.removeAttribute('src');
         btnAudio.style.display = 'none';
+    }
+
+    // Render definitions & synonyms
+    if (data.meanings && data.meanings.length > 0) {
+        definitionsList.innerHTML = '';
+        data.meanings.forEach(m => {
+            if (m.definitions && m.definitions.length > 0) {
+                m.definitions.forEach(def => {
+                    const div = document.createElement('div');
+                    div.className = 'definition-item';
+                    
+                    let synsHtml = '';
+                    if (m.synonyms && m.synonyms.length > 0) {
+                        const synsList = m.synonyms.slice(0, 5).map(s => `<span class="definition-syn-tag">${s}</span>`).join('');
+                        synsHtml = `<div class="definition-syns">Sinónimos: ${synsList}</div>`;
+                    }
+                    
+                    div.innerHTML = `
+                        <div class="definition-header">
+                            <span class="definition-pos">${m.partOfSpeech}</span>
+                        </div>
+                        <p class="definition-desc">${def}</p>
+                        ${synsHtml}
+                    `;
+                    definitionsList.appendChild(div);
+                });
+            }
+        });
+        definitionsSection.style.display = 'block';
+    } else {
+        definitionsList.innerHTML = '';
+        definitionsSection.style.display = 'none';
     }
 
     // Sync tabs UI to activeTense

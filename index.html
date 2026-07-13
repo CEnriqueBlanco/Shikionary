@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="style.css">
     <!-- FontAwesome for clean icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/compromise"></script>
     <script src="app.js" defer></script>
 </head>
 <body>
@@ -87,6 +88,14 @@
                         <div class="translation-section">
                             <h3>Traducción</h3>
                             <p id="result-word-es" class="translation-text">Palabra</p>
+                        </div>
+
+                        <!-- Definitions & details from Dictionary API -->
+                        <div id="definitions-section" class="definitions-section" style="display: none;">
+                            <h3>Definiciones en Inglés</h3>
+                            <div id="definitions-list" class="definitions-list">
+                                <!-- Definitions will be dynamically added here -->
+                            </div>
                         </div>
 
                         <div class="examples-section">
