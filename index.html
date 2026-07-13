@@ -35,9 +35,6 @@
                 <button id="btn-theme-toggle" class="btn-icon" title="Cambiar Tema (Claro/Oscuro)">
                     <i class="fa-solid fa-moon"></i>
                 </button>
-                <button id="btn-settings" class="btn-icon" title="Configurar GitHub Sync">
-                    <i class="fa-solid fa-gear"></i>
-                </button>
             </div>
         </header>
 
@@ -74,9 +71,15 @@
                                 <audio id="audio-pronunciation" style="display: none;"></audio>
                             </div>
                         </div>
-                        <button id="btn-save-word" class="btn-accent" title="Guardar palabra">
-                            <i class="fa-regular fa-bookmark"></i> Guardar
-                        </button>
+                        <div class="save-actions-wrapper">
+                            <select id="save-section-select" class="section-select-dropdown" title="Guardar en sección">
+                                <option value="General">General</option>
+                                <option value="new-section">+ Nueva Sección...</option>
+                            </select>
+                            <button id="btn-save-word" class="btn-accent" title="Guardar palabra">
+                                <i class="fa-regular fa-bookmark"></i> Guardar
+                            </button>
+                        </div>
                     </div>
 
                     <div class="result-body">
@@ -127,6 +130,12 @@
                         <i class="fa-solid fa-filter"></i>
                         <input type="text" id="filter-input" placeholder="Filtrar palabras...">
                     </div>
+                    <div class="filter-select-wrapper">
+                        <select id="filter-section-select" class="section-filter-dropdown" title="Filtrar por sección">
+                            <option value="all">Todas las secciones</option>
+                            <option value="General">General</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div id="vocabulary-list" class="vocabulary-list">
@@ -149,48 +158,28 @@
             </div>
         </footer>
 
-        <!-- Settings Modal (GitHub Sync Settings) -->
-        <div id="settings-modal" class="modal-overlay" style="display: none;">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2><i class="fa-solid fa-gears"></i> Configuración de Sincronización</h2>
-                    <button id="btn-close-settings" class="btn-close-modal">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
+        <!-- Pantalla de Login Obligatoria -->
+        <div id="login-screen" class="login-overlay">
+            <div class="login-box">
+                <div class="login-header">
+                    <i class="fa-solid fa-flask welcome-icon"></i>
+                    <h2>Future Gadget Lab</h2>
+                    <p>Ingrese credenciales de acceso</p>
                 </div>
-                <div class="modal-body">
-                    <p class="settings-help">
-                        Configura un repositorio de GitHub para guardar automáticamente tu vocabulario en un archivo <code>words.json</code>. De este modo, tu progreso se sincronizará entre todos tus dispositivos.
-                    </p>
-                    
-                    <form id="settings-form">
-                        <div class="form-group">
-                            <label for="github-username">Usuario de GitHub</label>
-                            <input type="text" id="github-username" placeholder="Ej: carlostraductor" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="github-repo">Nombre del Repositorio</label>
-                            <input type="text" id="github-repo" placeholder="Ej: Ingles" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="github-branch">Rama (Branch)</label>
-                            <input type="text" id="github-branch" value="main" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="github-token">GitHub Personal Access Token (PAT)</label>
-                            <input type="password" id="github-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" required>
-                            <span class="input-help">Crea un token con permisos de <code>repo</code> o <code>public_repo</code>.</span>
-                        </div>
-
-                        <div class="modal-actions">
-                            <button type="button" id="btn-clear-settings" class="btn-secondary">Desconectar</button>
-                            <button type="submit" class="btn-accent">Guardar y Sincronizar</button>
-                        </div>
-                    </form>
-                </div>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="login-username">Usuario</label>
+                        <input type="text" id="login-username" required autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Contraseña</label>
+                        <input type="password" id="login-password" required autocomplete="current-password">
+                    </div>
+                    <div id="login-error" class="login-error-msg" style="display: none;">
+                        Usuario o contraseña incorrectos.
+                    </div>
+                    <button type="submit" class="btn-accent btn-login-submit">Acceder</button>
+                </form>
             </div>
         </div>
     </div>

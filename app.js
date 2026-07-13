@@ -1,9 +1,22 @@
+// CONFIGURACIÓN DE GOOGLE SHEETS (Sincronización en la nube)
+// Reemplaza esto con el enlace de tu Web App de Google Apps Script (termina en /exec)
+const GOOGLE_SHEETS_URL = 'PEGA_TU_ENLACE_DE_GOOGLE_APPS_SCRIPT_AQUI';
+
+// CONFIGURACIÓN DE GITHUB (Opcional - Alternativa)
+const GITHUB_TOKEN = 'PEGA_TU_TOKEN_AQUI'; 
+const GITHUB_USERNAME = 'CEnriqueBlanco';
+const GITHUB_REPO = 'Shikionary';
+const GITHUB_BRANCH = 'main';
+
 // Global State
 let savedWords = [];
 let gitConfig = null;
 let fileSha = null; // Store the SHA of words.json required for GitHub API updates
 let activeWordData = null; // Store the last translated word info
 let activeTense = 'present'; // Store currently selected tense (present, past, future)
+let activeSearchMode = 'word'; // Store search mode: 'word' or 'phrase'
+let activeSectionFilter = 'all'; // Filter words: 'all' or specific section name
+let availableSections = ['General']; // List of available sections
 
 // DOM Elements
 const searchForm = document.getElementById('search-form');
@@ -21,21 +34,21 @@ const btnAudio = document.getElementById('btn-audio');
 const audioPronunciation = document.getElementById('audio-pronunciation');
 const resultWordEs = document.getElementById('result-word-es');
 const examplesList = document.getElementById('examples-list');
+const saveSectionSelect = document.getElementById('save-section-select');
 const btnSaveWord = document.getElementById('btn-save-word');
 
 // Sidebar and list elements
 const vocabularyList = document.getElementById('vocabulary-list');
 const savedCount = document.getElementById('saved-count');
 const filterInput = document.getElementById('filter-input');
+const filterSectionSelect = document.getElementById('filter-section-select');
 const divergenceMeter = document.getElementById('divergence-meter');
 
-// Settings modal and theme elements
+// Login and Theme elements
 const btnThemeToggle = document.getElementById('btn-theme-toggle');
-const btnSettings = document.getElementById('btn-settings');
-const settingsModal = document.getElementById('settings-modal');
-const btnCloseSettings = document.getElementById('btn-close-settings');
-const settingsForm = document.getElementById('settings-form');
-const btnClearSettings = document.getElementById('btn-clear-settings');
+const loginScreen = document.getElementById('login-screen');
+const loginForm = document.getElementById('login-form');
+const loginError = document.getElementById('login-error');
 const syncStatus = document.getElementById('sync-status');
 const syncStatusText = document.getElementById('sync-status-text');
 
@@ -53,6 +66,24 @@ function initEventListeners() {
         e.preventDefault();
         const query = searchInput.value.trim();
         if (query) translateWord(query);
+    });
+
+    // Search Mode Toggle click (Word vs Phrase)
+    const modeButtons = document.querySelectorAll('.btn-mode');
+    modeButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            modeButtons.forEach(b => b.classList.remove('active'));
+            const clickedBtn = e.target.closest('.btn-mode');
+            clickedBtn.classList.add('active');
+            activeSearchMode = clickedBtn.getAttribute('data-mode');
+            
+            if (activeSearchMode === 'phrase') {
+                searchInput.placeholder = "Escribe una frase u oración en inglés...";
+            } else {
+                searchInput.placeholder = "Escribe una palabra en inglés...";
+            }
+            searchInput.focus();
+        });
     });
 
     // Tense tabs click using event delegation
@@ -102,6 +133,29 @@ function initEventListeners() {
         renderVocabularyList(e.target.value.trim());
     });
 
+    // Filter section select change
+    filterSectionSelect.addEventListener('change', (e) => {
+        activeSectionFilter = e.target.value;
+        renderVocabularyList(filterInput.value.trim());
+    });
+
+    // Save section select change (create new section)
+    saveSectionSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'new-section') {
+            const newSec = prompt('Escribe el nombre de la nueva sección:');
+            if (newSec && newSec.trim() !== '') {
+                const cleanedSec = newSec.trim();
+                if (!availableSections.includes(cleanedSec)) {
+                    availableSections.push(cleanedSec);
+                    updateSectionDropdowns();
+                }
+                saveSectionSelect.value = cleanedSec;
+            } else {
+                saveSectionSelect.value = 'General';
+            }
+        }
+    });
+
     // Theme Toggle click
     btnThemeToggle.addEventListener('click', () => {
         const isDark = document.body.classList.toggle('dark-mode');
@@ -115,35 +169,22 @@ function initEventListeners() {
         }
     });
 
-    // Settings Modal toggles
-    btnSettings.addEventListener('click', () => {
-        openSettingsModal();
-    });
-
-    btnCloseSettings.addEventListener('click', () => {
-        closeSettingsModal();
-    });
-
-    // Close modal on overlay click
-    settingsModal.addEventListener('click', (e) => {
-        if (e.target === settingsModal) {
-            closeSettingsModal();
-        }
-    });
-
-    // Settings form submit
-    settingsForm.addEventListener('submit', (e) => {
+    // Login form submit handler
+    loginForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        saveSettings();
-    });
-
-    // Clear settings
-    btnClearSettings.addEventListener('click', () => {
-        clearSettings();
+        const username = document.getElementById('login-username').value.trim();
+        const password = document.getElementById('login-password').value.trim();
+        
+        if (username === 'Shike' && password === 'gasaipedro1') {
+            localStorage.setItem('shike_authenticated', 'true');
+            loginScreen.style.display = 'none';
+        } else {
+            loginError.style.display = 'block';
+        }
     });
 }
 
-// Settings management (localStorage for credentials)
+// Settings management (Initialize Git config automatically)
 function loadSettings() {
     // Load theme preference
     const savedTheme = localStorage.getItem('kurisu_theme');
@@ -153,93 +194,80 @@ function loadSettings() {
         if (icon) icon.className = 'fa-solid fa-sun';
     }
 
-    const savedConfig = localStorage.getItem('kurisu_git_config');
-    if (savedConfig) {
-        gitConfig = JSON.parse(savedConfig);
-        document.getElementById('github-username').value = gitConfig.username || '';
-        document.getElementById('github-repo').value = gitConfig.repo || '';
-        document.getElementById('github-branch').value = gitConfig.branch || 'main';
-        document.getElementById('github-token').value = gitConfig.token || '';
+    // Check Authentication state
+    const isAuthenticated = localStorage.getItem('shike_authenticated');
+    if (isAuthenticated === 'true') {
+        loginScreen.style.display = 'none';
+    } else {
+        loginScreen.style.display = 'flex';
+    }
+
+    // Check configuration priority
+    if (GOOGLE_SHEETS_URL && GOOGLE_SHEETS_URL !== 'PEGA_TU_ENLACE_DE_GOOGLE_APPS_SCRIPT_AQUI') {
+        updateSyncStatus('configured');
+    } else if (GITHUB_TOKEN && GITHUB_TOKEN !== 'PEGA_TU_TOKEN_AQUI') {
+        gitConfig = {
+            username: GITHUB_USERNAME,
+            repo: GITHUB_REPO,
+            branch: GITHUB_BRANCH,
+            token: GITHUB_TOKEN
+        };
         updateSyncStatus('configured');
     } else {
-        updateSyncStatus('local');
-    }
-}
-
-function saveSettings() {
-    const username = document.getElementById('github-username').value.trim();
-    const repo = document.getElementById('github-repo').value.trim();
-    const branch = document.getElementById('github-branch').value.trim() || 'main';
-    const token = document.getElementById('github-token').value.trim();
-
-    if (!username || !repo || !token) {
-        alert('Por favor, rellene todos los campos obligatorios.');
-        return;
-    }
-
-    gitConfig = { username, repo, branch, token };
-    localStorage.setItem('kurisu_git_config', JSON.stringify(gitConfig));
-    closeSettingsModal();
-    updateSyncStatus('syncing');
-    loadWordsData();
-}
-
-function clearSettings() {
-    if (confirm('¿Estás seguro de que deseas desconectar la sincronización de GitHub? Se usará el almacenamiento local.')) {
-        localStorage.removeItem('kurisu_git_config');
         gitConfig = null;
-        fileSha = null;
-        
-        // Reset settings form fields
-        document.getElementById('github-username').value = '';
-        document.getElementById('github-repo').value = '';
-        document.getElementById('github-branch').value = 'main';
-        document.getElementById('github-token').value = '';
-        
-        closeSettingsModal();
         updateSyncStatus('local');
-        
-        // Reload words from localStorage
-        loadWordsData();
     }
-}
-
-function openSettingsModal() {
-    settingsModal.style.display = 'flex';
-}
-
-function closeSettingsModal() {
-    settingsModal.style.display = 'none';
 }
 
 // Update UI Sincronización Status Bar
 function updateSyncStatus(status, message = '') {
     syncStatus.className = 'sync-status';
     
+    const isGoogle = GOOGLE_SHEETS_URL && GOOGLE_SHEETS_URL !== 'PEGA_TU_ENLACE_DE_GOOGLE_APPS_SCRIPT_AQUI';
+    const targetService = isGoogle ? 'Google Sheets' : 'GitHub';
+    
     if (status === 'local') {
         syncStatus.classList.add('local-mode');
-        syncStatusText.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Guardado local activo (No sincronizado con GitHub)';
+        syncStatus.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span id="sync-status-text">Guardado local activo (No sincronizado con ${targetService})</span>`;
     } else if (status === 'syncing') {
         syncStatus.classList.add('syncing');
-        syncStatusText.innerHTML = '<i class="fa-solid fa-arrows-rotate fa-spin"></i> Sincronizando con GitHub...';
+        syncStatus.innerHTML = `<i class="fa-solid fa-arrows-rotate fa-spin"></i> <span id="sync-status-text">Sincronizando con ${targetService}...</span>`;
     } else if (status === 'synced') {
         syncStatus.classList.add('synced');
-        syncStatusText.innerHTML = '<i class="fa-solid fa-cloud-check"></i> Sincronizado con GitHub con éxito';
+        syncStatus.innerHTML = `<i class="fa-solid fa-cloud-check"></i> <span id="sync-status-text">Sincronizado con ${targetService} con éxito</span>`;
     } else if (status === 'configured') {
         syncStatus.classList.add('synced');
-        syncStatusText.innerHTML = '<i class="fa-solid fa-circle-check"></i> Conectado a GitHub';
+        syncStatus.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span id="sync-status-text">Conectado a ${targetService}</span>`;
     } else if (status === 'error') {
         syncStatus.classList.add('error');
-        syncStatusText.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Error: ${message || 'No se pudo sincronizar'}`;
+        syncStatus.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span id="sync-status-text">Error: ${message || `No se pudo sincronizar con ${targetService}`}</span>`;
     }
 }
 
-// Load Words Data from GitHub or localStorage
+// Load Words Data from Google Sheets, GitHub or localStorage
 async function loadWordsData() {
-    if (gitConfig) {
+    const isGoogle = GOOGLE_SHEETS_URL && GOOGLE_SHEETS_URL !== 'PEGA_TU_ENLACE_DE_GOOGLE_APPS_SCRIPT_AQUI';
+    
+    if (isGoogle) {
         updateSyncStatus('syncing');
         try {
-            // We try loading words.json first from Traductor/words.json then from words.json (root)
+            const response = await fetch(GOOGLE_SHEETS_URL);
+            if (response.ok) {
+                savedWords = await response.json();
+                localStorage.setItem('kurisu_words_backup', JSON.stringify(savedWords));
+                updateSyncStatus('synced');
+            } else {
+                throw new Error('Servidor retornó código de error');
+            }
+        } catch (err) {
+            console.error('Error loading data from Google Sheets:', err);
+            const backup = localStorage.getItem('kurisu_words_backup');
+            savedWords = backup ? JSON.parse(backup) : [];
+            updateSyncStatus('error', 'Error de conexión con Google Sheets. Usando respaldo local.');
+        }
+    } else if (gitConfig) {
+        updateSyncStatus('syncing');
+        try {
             let data = await fetchFromGitHub('Traductor/words.json');
             if (!data) {
                 data = await fetchFromGitHub('words.json');
@@ -248,17 +276,15 @@ async function loadWordsData() {
             if (data) {
                 savedWords = JSON.parse(data.content);
                 fileSha = data.sha;
-                localStorage.setItem('kurisu_words_backup', JSON.stringify(savedWords)); // Always keep a local copy
+                localStorage.setItem('kurisu_words_backup', JSON.stringify(savedWords));
                 updateSyncStatus('synced');
             } else {
-                // If file does not exist, initialize empty array
                 savedWords = [];
                 fileSha = null;
                 updateSyncStatus('synced', 'Base de datos vacía inicializada');
             }
         } catch (err) {
             console.error('Error loading data from GitHub:', err);
-            // Fallback to local backup
             const backup = localStorage.getItem('kurisu_words_backup');
             savedWords = backup ? JSON.parse(backup) : [];
             updateSyncStatus('error', 'Error de conexión. Usando respaldo local.');
@@ -270,25 +296,44 @@ async function loadWordsData() {
         updateSyncStatus('local');
     }
     
+    // Extract unique sections from loaded words
+    availableSections = ['General'];
+    savedWords.forEach(w => {
+        if (w.section && w.section.trim() !== '' && !availableSections.includes(w.section)) {
+            availableSections.push(w.section);
+        }
+    });
+    updateSectionDropdowns();
+    
     renderVocabularyList();
 }
 
-// Save Words Data to GitHub or localStorage
+// Save Words Data to Google Sheets, GitHub or localStorage
 async function saveWordsData() {
-    if (gitConfig) {
+    const isGoogle = GOOGLE_SHEETS_URL && GOOGLE_SHEETS_URL !== 'PEGA_TU_ENLACE_DE_GOOGLE_APPS_SCRIPT_AQUI';
+    
+    if (isGoogle) {
         updateSyncStatus('syncing');
         try {
-            // Determine path to write to: if fileSha was loaded from words.json, write to words.json, else default to Traductor/words.json
-            // Let's check which path we should write to. We'll write to 'Traductor/words.json' by default, or 'words.json'.
-            // To be extremely consistent, let's write to whichever path we successfully loaded, or default to 'Traductor/words.json'
-            let writePath = 'Traductor/words.json';
-            
-            // Let's verify where the file was originally loaded. If we had loaded words.json, we can check.
-            // Actually, we can check if file is at root or in Traductor/ directory. Let's write to both, or choose path.
-            // Let's just try to update Traductor/words.json, and if it fails or if fileSha belongs to root, update root.
-            // Let's remember the path we loaded. We will store it in window.loadedPath.
+            await fetch(GOOGLE_SHEETS_URL, {
+                method: 'POST',
+                mode: 'no-cors', // Prevents CORS preflight block
+                headers: {
+                    'Content-Type': 'text/plain'
+                },
+                body: JSON.stringify(savedWords)
+            });
+            // Since mode: 'no-cors' does not let us read the status, we assume success after fetch resolves
+            localStorage.setItem('kurisu_words_backup', JSON.stringify(savedWords));
+            updateSyncStatus('synced');
+        } catch (err) {
+            console.error('Error saving data to Google Sheets:', err);
+            updateSyncStatus('error', 'Error de conexión con Google Sheets.');
+        }
+    } else if (gitConfig) {
+        updateSyncStatus('syncing');
+        try {
             const path = window.loadedPath || 'Traductor/words.json';
-            
             const sha = await writeToGitHub(path, JSON.stringify(savedWords, null, 2), fileSha);
             if (sha) {
                 fileSha = sha;
@@ -305,7 +350,7 @@ async function saveWordsData() {
         updateSyncStatus('local');
     }
     
-    renderVocabularyList();
+    renderVocabularyList(filterInput.value.trim());
 }
 
 // GitHub API Helpers
@@ -383,8 +428,31 @@ async function writeToGitHub(filePath, content, sha) {
 
 // Helper to generate structured sentences (Affirmative, Negative, Interrogative) by Tense
 function getStructuredTemplates(word, partOfSpeech, tense = 'present') {
-    const w = word.toLowerCase();
+    const w = word.toLowerCase().trim();
     const pos = partOfSpeech ? partOfSpeech.toLowerCase() : 'noun';
+    
+    // Check if it's a multi-word phrase (contains spaces)
+    if (w.includes(' ')) {
+        if (tense === 'past') {
+            return [
+                { type: 'Afirmativo', en: `Yesterday, he decided to "${w}".` },
+                { type: 'Negativo', en: `We did not need to "${w}" last week.` },
+                { type: 'Interrogativo', en: `Did you have to "${w}" in that situation?` }
+            ];
+        } else if (tense === 'future') {
+            return [
+                { type: 'Afirmativo', en: `I think you will have to "${w}" tomorrow.` },
+                { type: 'Negativo', en: `They will not try to "${w}" next time.` },
+                { type: 'Interrogativo', en: `Will we need to "${w}" in the future?` }
+            ];
+        } else { // present
+            return [
+                { type: 'Afirmativo', en: `It is important to "${w}" when learning.` },
+                { type: 'Negativo', en: `You do not need to "${w}" in this case.` },
+                { type: 'Interrogativo', en: `Do you think it is normal to "${w}"?` }
+            ];
+        }
+    }
     
     if (pos === 'verb') {
         if (tense === 'past') {
@@ -527,35 +595,37 @@ async function translateWord(word) {
             translationText = 'Error al obtener traducción';
         }
 
-        // 2. Fetch Dictionary Details (Pronunciation and Examples) from Free Dictionary API
-        const dictUrl = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
-        const dictResponse = await fetch(dictUrl);
-        
+        // 2. Fetch Dictionary Details (Pronunciation and Examples) from Free Dictionary API (Only for single words)
         let phoneticText = '';
         let audioUrl = '';
         let partOfSpeech = 'noun';
 
-        if (dictResponse.ok) {
-            const dictData = await dictResponse.json();
-            const entry = dictData[0];
+        if (activeSearchMode === 'word' && !word.includes(' ')) {
+            const dictUrl = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
+            const dictResponse = await fetch(dictUrl);
             
-            // Extract phonetic string
-            phoneticText = entry.phonetic || '';
-            if (!phoneticText && entry.phonetics && entry.phonetics.length > 0) {
-                phoneticText = entry.phonetics.find(p => p.text)?.text || '';
-            }
-
-            // Extract audio pronunciation
-            if (entry.phonetics && entry.phonetics.length > 0) {
-                const audioObj = entry.phonetics.find(p => p.audio && p.audio.trim() !== '');
-                if (audioObj) {
-                    audioUrl = audioObj.audio;
+            if (dictResponse.ok) {
+                const dictData = await dictResponse.json();
+                const entry = dictData[0];
+                
+                // Extract phonetic string
+                phoneticText = entry.phonetic || '';
+                if (!phoneticText && entry.phonetics && entry.phonetics.length > 0) {
+                    phoneticText = entry.phonetics.find(p => p.text)?.text || '';
                 }
-            }
-            
-            // Get first part of speech
-            if (entry.meanings && entry.meanings.length > 0) {
-                partOfSpeech = entry.meanings[0].partOfSpeech || 'noun';
+
+                // Extract audio pronunciation
+                if (entry.phonetics && entry.phonetics.length > 0) {
+                    const audioObj = entry.phonetics.find(p => p.audio && p.audio.trim() !== '');
+                    if (audioObj) {
+                        audioUrl = audioObj.audio;
+                    }
+                }
+                
+                // Get first part of speech
+                if (entry.meanings && entry.meanings.length > 0) {
+                    partOfSpeech = entry.meanings[0].partOfSpeech || 'noun';
+                }
             }
         }
 
@@ -608,6 +678,13 @@ function displayResult(data) {
         }
     });
 
+    // Set Save Section Dropdown to match current word's section (if saved)
+    if (data.section) {
+        saveSectionSelect.value = data.section;
+    } else {
+        saveSectionSelect.value = 'General';
+    }
+
     // Render examples list
     renderActiveWordExamples();
 
@@ -643,7 +720,15 @@ function toggleSaveWord(wordData) {
         savedWords.splice(index, 1);
     } else {
         // Add
+        const selectedSec = saveSectionSelect.value || 'General';
+        wordData.section = selectedSec;
         savedWords.unshift(wordData);
+        
+        // Ensure new section is loaded in dropdowns if not present
+        if (!availableSections.includes(selectedSec)) {
+            availableSections.push(selectedSec);
+            updateSectionDropdowns();
+        }
     }
     
     updateSaveButtonState(wordData.wordEn);
@@ -655,6 +740,13 @@ function renderVocabularyList(filterText = '') {
     vocabularyList.innerHTML = '';
     
     const filtered = savedWords.filter(w => {
+        // 1. Filter by Section
+        const wordSec = w.section || 'General';
+        if (activeSectionFilter !== 'all' && wordSec !== activeSectionFilter) {
+            return false;
+        }
+        
+        // 2. Filter by Search Text
         if (!filterText) return true;
         const text = filterText.toLowerCase();
         return w.wordEn.toLowerCase().includes(text) || w.wordEs.toLowerCase().includes(text);
@@ -668,7 +760,7 @@ function renderVocabularyList(filterText = '') {
         emptyMsg.className = 'empty-list-message';
         emptyMsg.innerHTML = filterText 
             ? `<p>No se encontraron palabras para "${filterText}".</p>` 
-            : `<p>No tienes palabras guardadas en esta línea temporal.</p>`;
+            : `<p>No tienes palabras en esta sección.</p>`;
         vocabularyList.appendChild(emptyMsg);
         return;
     }
@@ -679,7 +771,6 @@ function renderVocabularyList(filterText = '') {
         
         // Clicking item displays it in translator panel
         item.addEventListener('click', (e) => {
-            // Prevent display trigger if delete button is clicked
             if (e.target.closest('.btn-delete-word')) return;
             
             activeWordData = w;
@@ -714,11 +805,49 @@ function renderVocabularyList(filterText = '') {
     });
 }
 
+// Update both Select dropdowns (Save Card and Filter Bar)
+function updateSectionDropdowns() {
+    const currentSaveVal = saveSectionSelect.value;
+    saveSectionSelect.innerHTML = '';
+    availableSections.forEach(sec => {
+        const opt = document.createElement('option');
+        opt.value = sec;
+        opt.textContent = sec;
+        saveSectionSelect.appendChild(opt);
+    });
+    const newOpt = document.createElement('option');
+    newOpt.value = 'new-section';
+    newOpt.textContent = '+ Nueva Sección...';
+    saveSectionSelect.appendChild(newOpt);
+    
+    if (availableSections.includes(currentSaveVal)) {
+        saveSectionSelect.value = currentSaveVal;
+    } else {
+        saveSectionSelect.value = 'General';
+    }
+
+    const currentFilterVal = filterSectionSelect.value;
+    filterSectionSelect.innerHTML = '<option value="all">Todas las secciones</option>';
+    availableSections.forEach(sec => {
+        const opt = document.createElement('option');
+        opt.value = sec;
+        opt.textContent = sec;
+        filterSectionSelect.appendChild(opt);
+    });
+    
+    if (currentFilterVal === 'all' || availableSections.includes(currentFilterVal)) {
+        filterSectionSelect.value = currentFilterVal;
+        activeSectionFilter = currentFilterVal;
+    } else {
+        filterSectionSelect.value = 'all';
+        activeSectionFilter = 'all';
+    }
+}
+
 // Nixie Tube Divergence calculation (Easter Egg!)
-// 1.048596 is the Steins;Gate worldline. Each saved word alters divergence.
 function updateDivergenceMeter() {
     const baseDivergence = 1.048596;
-    const shiftPerWord = 0.000023; // Tiny shift per saved word
+    const shiftPerWord = 0.000023;
     const currentDivergence = baseDivergence + (savedWords.length * shiftPerWord);
     divergenceMeter.textContent = currentDivergence.toFixed(6);
 }
