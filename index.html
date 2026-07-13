@@ -12,7 +12,7 @@
     <!-- FontAwesome for clean icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://unpkg.com/compromise"></script>
-    <script src="app.js" defer></script>
+    <script type="module" src="app.js" defer></script>
 </head>
 <body>
     <div class="app-container">
@@ -33,6 +33,9 @@
             </div>
 
             <div class="header-actions">
+                <button id="btn-start-review" class="btn-review-trigger" title="Repasar vocabulario (Bucle Temporal)">
+                    <i class="fa-solid fa-clock-rotate-left"></i> <span>Repasar</span>
+                </button>
                 <button id="btn-theme-toggle" class="btn-icon" title="Cambiar Tema (Claro/Oscuro)">
                     <i class="fa-solid fa-moon"></i>
                 </button>
@@ -70,6 +73,9 @@
                                 <button id="btn-audio" class="btn-audio" title="Escuchar pronunciación">
                                     <i class="fa-solid fa-volume-high"></i>
                                 </button>
+                                <button id="btn-mic" class="btn-mic" title="Práctica de pronunciación por voz">
+                                    <i class="fa-solid fa-microphone"></i>
+                                </button>
                                 <audio id="audio-pronunciation" style="display: none;"></audio>
                             </div>
                         </div>
@@ -88,6 +94,12 @@
                         <div class="translation-section">
                             <h3>Traducción</h3>
                             <p id="result-word-es" class="translation-text">Palabra</p>
+                        </div>
+
+                        <!-- Lab Notes (Mnemotecnias / Apuntes de Estudio) -->
+                        <div class="lab-notes-section">
+                            <h3>Notas de Laboratorio</h3>
+                            <textarea id="lab-notes-textarea" placeholder="Escribe mnemotecnias, apuntes o frases personalizadas para esta palabra..."></textarea>
                         </div>
 
                         <!-- Definitions & details from Dictionary API -->
@@ -162,6 +174,9 @@
                         <span id="music-track-count" class="badge">0</span>
                     </div>
                     <div class="player-body">
+                        <div class="visualizer-container">
+                            <canvas id="audio-visualizer"></canvas>
+                        </div>
                         <div class="track-info">
                             <span id="current-track-name" class="track-name">Ninguna canción seleccionada</span>
                         </div>
@@ -227,6 +242,73 @@
                     </div>
                     <button type="submit" class="btn-accent btn-login-submit">Acceder</button>
                 </form>
+            </div>
+        </div>
+
+        <!-- Pantalla de Repaso (Flashcards) -->
+        <div id="review-screen" class="review-screen-overlay" style="display: none;">
+            <div class="review-container">
+                <header class="review-header">
+                    <h2><i class="fa-solid fa-clock-rotate-left"></i> Time Loop Review</h2>
+                    <span id="review-progress-text" class="badge">Pendientes: 0</span>
+                    <button id="btn-close-review" class="btn-icon" title="Salir del repaso">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </header>
+
+                <div class="flashcard-wrapper">
+                    <div class="flashcard-container">
+                        <div class="flashcard-inner">
+                            <!-- Front Side -->
+                            <div class="flashcard-side flashcard-front" id="btn-flip-card-front">
+                                <div class="flashcard-content">
+                                    <span class="flashcard-label">PALABRA EN INGLÉS</span>
+                                    <h1 id="review-front-word">Word</h1>
+                                    <span id="review-front-phonetic" class="phonetic">/wɜːd/</span>
+                                    <p class="click-to-flip-hint"><i class="fa-solid fa-repeat"></i> Haz clic en la tarjeta para revelarla</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Back Side -->
+                            <div class="flashcard-side flashcard-back">
+                                <div class="flashcard-content">
+                                    <span class="flashcard-label">TRADUCCIÓN</span>
+                                    <h2 id="review-back-translation" class="translation-text">Palabra</h2>
+                                    <h3 id="review-back-word-en" class="original-word-text">Word</h3>
+                                    
+                                    <div class="review-back-details">
+                                        <h4>Ejemplos:</h4>
+                                        <ul id="review-back-examples" class="review-examples-list"></ul>
+                                        
+                                        <h4>Notas de Laboratorio:</h4>
+                                        <textarea id="review-back-notes" class="review-notes-textarea" placeholder="Escribe notas de repaso aquí..."></textarea>
+
+                                        <!-- Voice Practice inside review card -->
+                                        <div class="review-voice-practice">
+                                            <h4>Practicar Pronunciación:</h4>
+                                            <div class="voice-practice-row">
+                                                <button id="review-btn-mic" class="btn-mic" title="Grabar pronunciación">
+                                                    <i class="fa-solid fa-microphone"></i> Probar Voz
+                                                </button>
+                                                <span id="review-voice-status" class="voice-status-feedback"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p id="btn-flip-card-back" class="click-to-flip-hint"><i class="fa-solid fa-repeat"></i> Volver al frente</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="review-actions">
+                    <button id="btn-review-fail" class="btn-fail" title="No recuerdo esta palabra. Volver a encolar.">
+                        <i class="fa-solid fa-rotate-left"></i> Bucle Temporal
+                    </button>
+                    <button id="btn-review-success" class="btn-success" title="¡Recordada con éxito! Remover de sesión.">
+                        <i class="fa-solid fa-circle-check"></i> Fijar Línea (Acierto)
+                    </button>
+                </footer>
             </div>
         </div>
     </div>
