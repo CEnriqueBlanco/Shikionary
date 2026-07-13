@@ -1,6 +1,6 @@
 // CONFIGURACIÓN DE GOOGLE SHEETS (Sincronización en la nube)
 // Reemplaza esto con el enlace de tu Web App de Google Apps Script (termina en /exec)
-const GOOGLE_SHEETS_URL = 'PEGA_TU_ENLACE_DE_GOOGLE_APPS_SCRIPT_AQUI';
+const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyjBv8LGNEpP9Ai0FAHD3dkGRCqVQaug4EeEB2MRaECmZWX24BnodQDmBMU1NSJoH0F/exec';
 
 // CONFIGURACIÓN DE GITHUB (Opcional - Alternativa)
 const GITHUB_TOKEN = 'PEGA_TU_TOKEN_AQUI'; 
@@ -103,14 +103,19 @@ function initEventListeners() {
         }
     });
 
-    // Clear search input
+    // Clear search input & Filter saved list as user types
     searchInput.addEventListener('input', () => {
+        const query = searchInput.value.trim();
+        filterInput.value = query; // Sync value to the filter input
+        renderVocabularyList(query); // Filter the list in real-time
         btnClear.style.display = searchInput.value ? 'block' : 'none';
     });
 
     btnClear.addEventListener('click', () => {
         searchInput.value = '';
         btnClear.style.display = 'none';
+        filterInput.value = ''; // Reset filter
+        renderVocabularyList(''); // Show all words again
         searchInput.focus();
     });
 
