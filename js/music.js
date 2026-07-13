@@ -27,6 +27,8 @@ export function initAudioVisualizer() {
     ctx.lineTo(canvas.width, canvas.height / 2);
     ctx.stroke();
 
+    let phase = 0;
+
     // We initialize the AudioContext on play because browsers block autoplay contexts
     function setupAudioContext() {
         if (audioCtx) return;
@@ -39,8 +41,6 @@ export function initAudioVisualizer() {
             source = audioCtx.createMediaElementSource(audio);
             source.connect(analyser);
             analyser.connect(audioCtx.destination);
-            
-            draw();
         } catch (e) {
             console.error('AudioContext failed to initialize:', e);
         }
@@ -54,41 +54,69 @@ export function initAudioVisualizer() {
         }
     });
 
-    // Draw function
+    // Draw function running continuously
     function draw() {
         visualizerAnimationId = requestAnimationFrame(draw);
-        if (!analyser) return;
 
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        analyser.getByteTimeDomainData(dataArray);
+        const nixieBg = getComputedStyle(document.body).getPropertyValue('--nixie-bg').trim() || '#151110';
+        const nixieGlow = getComputedStyle(document.body).getPropertyValue('--nixie-glow').trim() || '#FF5E13';
 
-        ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--nixie-bg').trim() || '#151110';
+        ctx.fillStyle = nixieBg;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         ctx.lineWidth = 2;
-        ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--nixie-glow').trim() || '#FF5E13';
+        ctx.strokeStyle = nixieGlow;
         ctx.beginPath();
 
-        const sliceWidth = canvas.width * 1.0 / bufferLength;
-        let x = 0;
+        const activeAudio = document.getElementById(state.activeAudioId);
+        const isPlaying = activeAudio && !activeAudio.paused;
 
-        for (let i = 0; i < bufferLength; i++) {
-            const v = dataArray[i] / 128.0;
-            const y = v * canvas.height / 2;
+        if (state.activeAudioId === 'music-audio' && analyser && isPlaying) {
+            // Draw real time domain visualizer waves for Google Drive tracks
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
 
-            if (i === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
+            const sliceWidth = canvas.width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * canvas.height / 2;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+
+                x += sliceWidth;
             }
+        } else if (isPlaying) {
+            // Draw a beautiful simulated moving lofi sine wave for CORS-bypassing streams (Radio/API)
+            const amplitude = 10;
+            const frequency = 0.035;
+            phase += 0.12; // Speed of motion
 
-            x += sliceWidth;
+            for (let x = 0; x < canvas.width; x++) {
+                const y = (canvas.height / 2) + Math.sin(x * frequency + phase) * amplitude;
+                if (x === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+        } else {
+            // Draw flat line when paused/stopped
+            ctx.moveTo(0, canvas.height / 2);
+            ctx.lineTo(canvas.width, canvas.height / 2);
         }
 
-        ctx.lineTo(canvas.width, canvas.height / 2);
         ctx.stroke();
     }
+
+    // Start drawing loop immediately
+    draw();
     
     // Handle window resize
     window.addEventListener('resize', () => {
