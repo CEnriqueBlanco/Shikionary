@@ -512,21 +512,21 @@ function getStructuredTemplates(word, partOfSpeech, tense = 'present') {
     if (w.includes(' ')) {
         if (tense === 'past') {
             return [
-                { type: 'Afirmativo', en: `Yesterday, he decided to "${w}".` },
-                { type: 'Negativo', en: `We did not need to "${w}" last week.` },
-                { type: 'Interrogativo', en: `Did you have to "${w}" in that situation?` }
+                { type: 'Afirmativo', en: `Yesterday, he decided to ${w}.` },
+                { type: 'Negativo', en: `We did not need to ${w} last week.` },
+                { type: 'Interrogativo', en: `Did you have to ${w} in that situation?` }
             ];
         } else if (tense === 'future') {
             return [
-                { type: 'Afirmativo', en: `I think you will have to "${w}" tomorrow.` },
-                { type: 'Negativo', en: `They will not try to "${w}" next time.` },
-                { type: 'Interrogativo', en: `Will we need to "${w}" in the future?` }
+                { type: 'Afirmativo', en: `I think you will have to ${w} tomorrow.` },
+                { type: 'Negativo', en: `They will not try to ${w} next time.` },
+                { type: 'Interrogativo', en: `Will we need to ${w} in the future?` }
             ];
         } else { // present
             return [
-                { type: 'Afirmativo', en: `It is important to "${w}" when learning.` },
-                { type: 'Negativo', en: `You do not need to "${w}" in this case.` },
-                { type: 'Interrogativo', en: `Do you think it is normal to "${w}"?` }
+                { type: 'Afirmativo', en: `It is important to ${w} when learning.` },
+                { type: 'Negativo', en: `You do not need to ${w} in this case.` },
+                { type: 'Interrogativo', en: `Do you think it is normal to ${w}?` }
             ];
         }
     }
