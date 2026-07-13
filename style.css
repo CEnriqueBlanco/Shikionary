@@ -264,6 +264,7 @@ body {
     font-size: 1rem;
     outline: none;
     background-color: var(--bg-primary);
+    color: var(--text-main);
     transition: var(--transition);
 }
 
@@ -688,12 +689,13 @@ body {
     font-family: var(--font-sans);
     font-size: 0.9rem;
     background-color: var(--bg-primary);
+    color: var(--text-main);
     transition: var(--transition);
 }
 
 .filter-input-wrapper input:focus {
     border-color: var(--border-focus);
-    background-color: #fff;
+    background-color: var(--bg-card);
 }
 
 .vocabulary-list {
@@ -928,4 +930,185 @@ body {
 @keyframes scaleUp {
     from { transform: scale(0.95); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
+}
+
+/* Music Player Widget Styles */
+.music-player-widget {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 15px;
+    box-shadow: var(--shadow-sm);
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.music-player-widget .player-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+.music-player-widget .player-header h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.music-player-widget .player-header i {
+    color: var(--accent-red);
+    margin-right: 4px;
+}
+
+.track-info {
+    text-align: center;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 8px;
+    margin-bottom: 10px;
+}
+
+.track-name {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: var(--accent-red);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+
+.player-controls-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.player-buttons {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.btn-player-control {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-player-control:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    background-color: var(--accent-red-light);
+}
+
+.btn-player-control.btn-play {
+    width: 42px;
+    height: 42px;
+    font-size: 1.1rem;
+    background-color: var(--accent-red);
+    color: white;
+    border: none;
+}
+
+.btn-player-control.btn-play:hover {
+    background-color: var(--accent-red-hover);
+    color: white;
+    transform: scale(1.05);
+}
+
+.player-progress-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+}
+
+.time-stamp {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    min-width: 30px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--bg-secondary);
+    border-radius: 2px;
+    cursor: pointer;
+    accent-color: var(--accent-red);
+}
+
+.player-volume-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 80%;
+    justify-content: center;
+}
+
+.volume-icon {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.volume-bar {
+    width: 70px;
+    height: 4px;
+    background: var(--bg-secondary);
+    border-radius: 2px;
+    cursor: pointer;
+    accent-color: var(--accent-red);
+}
+
+.playlist-dropdown-wrapper {
+    margin-top: 5px;
+}
+
+.playlist-select {
+    width: 100%;
+    padding: 8px;
+    background-color: var(--bg-primary);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    outline: none;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.playlist-select:focus {
+    border-color: var(--border-focus);
+}
+
+.btn-player-control.btn-small {
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
+    border: none;
+    color: var(--text-muted);
+}
+
+.btn-player-control.btn-small.active {
+    color: var(--accent-red);
+    background-color: var(--accent-red-light);
+    box-shadow: 0 0 5px var(--accent-red-light);
 }

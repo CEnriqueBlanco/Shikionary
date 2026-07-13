@@ -1,6 +1,6 @@
 // CONFIGURACIÓN DE GOOGLE SHEETS (Sincronización en la nube)
 // Reemplaza esto con el enlace de tu Web App de Google Apps Script (termina en /exec)
-const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyjBv8LGNEpP9Ai0FAHD3dkGRCqVQaug4EeEB2MRaECmZWX24BnodQDmBMU1NSJoH0F/exec';
+const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwliI-YwdoEO4C8QZMs9CHgv7HtAOQRt3-b_QIWNQa5GZpTVf_ERBhXOF5rPapJ8dbI/exec';
 
 // CONFIGURACIÓN DE GITHUB (Opcional - Alternativa)
 const GITHUB_TOKEN = 'PEGA_TU_TOKEN_AQUI'; 
@@ -17,6 +17,13 @@ let activeTense = 'present'; // Store currently selected tense (present, past, f
 let activeSearchMode = 'word'; // Store search mode: 'word' or 'phrase'
 let activeSectionFilter = 'all'; // Filter words: 'all' or specific section name
 let availableSections = ['General']; // List of available sections
+let musicPlaylist = [];
+let currentTrackIndex = -1;
+let isShuffle = false;
+let isRepeat = false;
+let preloadedTrackData = null;
+let preloadedTrackIndex = -1;
+let isPreloading = false;
 
 // DOM Elements
 const searchForm = document.getElementById('search-form');
@@ -53,11 +60,27 @@ const loginError = document.getElementById('login-error');
 const syncStatus = document.getElementById('sync-status');
 const syncStatusText = document.getElementById('sync-status-text');
 
+// Music Player Elements
+const musicAudio = document.getElementById('music-audio');
+const btnPlayPause = document.getElementById('btn-play-pause');
+const btnPrevTrack = document.getElementById('btn-prev-track');
+const btnNextTrack = document.getElementById('btn-next-track');
+const btnShuffle = document.getElementById('btn-shuffle');
+const btnRepeat = document.getElementById('btn-repeat');
+const progressBar = document.getElementById('progress-bar');
+const volumeBar = document.getElementById('volume-bar');
+const currentTimeEl = document.getElementById('current-time');
+const totalTimeEl = document.getElementById('total-time');
+const currentTrackNameEl = document.getElementById('current-track-name');
+const playlistSelect = document.getElementById('playlist-select');
+const musicTrackCount = document.getElementById('music-track-count');
+
 // Initialize App
 window.addEventListener('DOMContentLoaded', () => {
     loadSettings();
     initEventListeners();
     loadWordsData();
+    loadMusicData();
 });
 
 // Event Listeners Initialization
@@ -104,39 +127,48 @@ function initEventListeners() {
         }
     });
 
-    // Clear search input & Filter saved list as user types (with autocomplete suggestions)
+    // Clear search input & Autocomplete suggestions as user types using Datamuse API
+    let suggestionsTimeout;
     searchInput.addEventListener('input', () => {
         const query = searchInput.value.trim();
-        filterInput.value = query; // Sync value to the filter input
-        renderVocabularyList(query); // Filter the list in real-time
         btnClear.style.display = searchInput.value ? 'block' : 'none';
 
-        // Autocomplete suggestions logic
+        clearTimeout(suggestionsTimeout);
         const lowerQuery = query.toLowerCase();
+
         if (lowerQuery.length > 0) {
-            const matches = savedWords.filter(w => w.wordEn.toLowerCase().includes(lowerQuery)).slice(0, 5);
-            if (matches.length > 0) {
-                searchSuggestions.innerHTML = '';
-                matches.forEach(match => {
-                    const div = document.createElement('div');
-                    div.className = 'suggestion-item';
-                    div.innerHTML = `
-                        <span>${match.wordEn}</span>
-                        <span class="suggestion-translation">${match.wordEs}</span>
-                    `;
-                    div.addEventListener('click', () => {
-                        searchInput.value = match.wordEn;
-                        searchSuggestions.style.display = 'none';
-                        filterInput.value = match.wordEn;
-                        renderVocabularyList(match.wordEn);
-                        translateWord(match.wordEn);
-                    });
-                    searchSuggestions.appendChild(div);
-                });
-                searchSuggestions.style.display = 'block';
-            } else {
-                searchSuggestions.style.display = 'none';
-            }
+            suggestionsTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch(`https://api.datamuse.com/sug?s=${encodeURIComponent(lowerQuery)}`);
+                    if (response.ok) {
+                        const matches = await response.json();
+                        const slicedMatches = matches.slice(0, 5);
+                        
+                        if (slicedMatches.length > 0) {
+                            searchSuggestions.innerHTML = '';
+                            slicedMatches.forEach(match => {
+                                const div = document.createElement('div');
+                                div.className = 'suggestion-item';
+                                div.innerHTML = `
+                                    <span>${match.word}</span>
+                                    <span class="suggestion-translation"><i class="fa-solid fa-language"></i> Traducir</span>
+                                `;
+                                div.addEventListener('click', () => {
+                                    searchInput.value = match.word;
+                                    searchSuggestions.style.display = 'none';
+                                    translateWord(match.word);
+                                });
+                                searchSuggestions.appendChild(div);
+                            });
+                            searchSuggestions.style.display = 'block';
+                        } else {
+                            searchSuggestions.style.display = 'none';
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error fetching suggestions:', err);
+                }
+            }, 300);
         } else {
             searchSuggestions.style.display = 'none';
         }
@@ -146,8 +178,6 @@ function initEventListeners() {
         searchInput.value = '';
         btnClear.style.display = 'none';
         searchSuggestions.style.display = 'none'; // Hide suggestions
-        filterInput.value = ''; // Reset filter
-        renderVocabularyList(''); // Show all words again
         searchInput.focus();
     });
 
@@ -226,6 +256,9 @@ function initEventListeners() {
             loginError.style.display = 'block';
         }
     });
+
+    // Initialize music player event listeners
+    initMusicPlayerListeners();
 }
 
 // Settings management (Initialize Git config automatically)
@@ -906,5 +939,322 @@ function showLoading(isLoading) {
     } else {
         loadingSpinner.style.display = 'none';
         btnSubmit.disabled = false;
+    }
+}
+
+// Load Music Data from Google Apps Script Web App
+async function loadMusicData() {
+    playlistSelect.innerHTML = '<option value="">Cargando canciones...</option>';
+    musicTrackCount.textContent = '0';
+    
+    // Check if GOOGLE_SHEETS_URL is configured
+    const isGoogle = GOOGLE_SHEETS_URL && GOOGLE_SHEETS_URL !== 'PEGA_TU_ENLACE_DE_GOOGLE_APPS_SCRIPT_AQUI';
+    if (!isGoogle) {
+        playlistSelect.innerHTML = '<option value="">Apps Script no configurado</option>';
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getMusic`);
+        if (response.ok) {
+            musicPlaylist = await response.json();
+            
+            if (musicPlaylist && musicPlaylist.length > 0 && !musicPlaylist.error) {
+                musicTrackCount.textContent = musicPlaylist.length;
+                playlistSelect.innerHTML = '<option value="">Selecciona una canción...</option>';
+                
+                musicPlaylist.forEach((track, index) => {
+                    const opt = document.createElement('option');
+                    opt.value = index;
+                    opt.textContent = track.name;
+                    playlistSelect.appendChild(opt);
+                });
+            } else {
+                playlistSelect.innerHTML = '<option value="">Carpeta vacía o error en Apps Script</option>';
+            }
+        } else {
+            playlistSelect.innerHTML = '<option value="">Error al cargar música</option>';
+        }
+    } catch (err) {
+        console.error('Error fetching music:', err);
+        playlistSelect.innerHTML = '<option value="">Error de conexión</option>';
+    }
+}
+
+// Initialize Music Player Event Listeners
+function initMusicPlayerListeners() {
+    // Play/Pause button click
+    btnPlayPause.addEventListener('click', togglePlayPause);
+    
+    // Prev track button click
+    btnPrevTrack.addEventListener('click', prevTrack);
+    
+    // Next track button click
+    btnNextTrack.addEventListener('click', nextTrack);
+
+    // Shuffle button click
+    btnShuffle.addEventListener('click', () => {
+        isShuffle = !isShuffle;
+        btnShuffle.classList.toggle('active', isShuffle);
+    });
+    
+    // Repeat button click
+    btnRepeat.addEventListener('click', () => {
+        isRepeat = !isRepeat;
+        btnRepeat.classList.toggle('active', isRepeat);
+    });
+    
+    // Playlist select dropdown change
+    playlistSelect.addEventListener('change', (e) => {
+        const index = parseInt(e.target.value);
+        if (!isNaN(index) && index >= 0 && index < musicPlaylist.length) {
+            playTrack(index);
+        }
+    });
+    
+    // Update progress bar as audio plays
+    musicAudio.addEventListener('timeupdate', () => {
+        if (musicAudio.duration) {
+            const pct = (musicAudio.currentTime / musicAudio.duration) * 100;
+            progressBar.value = pct;
+            currentTimeEl.textContent = formatTime(musicAudio.currentTime);
+            
+            // Preload the next track when current song reaches 80% progress
+            if (pct > 80) {
+                triggerNextTrackPreload();
+            }
+        }
+    });
+    
+    // Track duration loaded
+    musicAudio.addEventListener('durationchange', () => {
+        if (musicAudio.duration) {
+            totalTimeEl.textContent = formatTime(musicAudio.duration);
+        }
+    });
+    
+    // Click on progress bar to scrub
+    progressBar.addEventListener('input', (e) => {
+        if (musicAudio.duration) {
+            const time = (e.target.value / 100) * musicAudio.duration;
+            musicAudio.currentTime = time;
+        }
+    });
+    
+    // Volume bar change
+    volumeBar.addEventListener('input', (e) => {
+        const vol = e.target.value / 100;
+        musicAudio.volume = vol;
+    });
+    
+    // Auto-advance to next track when song ends
+    musicAudio.addEventListener('ended', nextTrack);
+}
+
+// Play a specific track index
+async function playTrack(index) {
+    if (index < 0 || index >= musicPlaylist.length) return;
+    
+    // Stop any current playback immediately
+    musicAudio.pause();
+    
+    currentTrackIndex = index;
+    playlistSelect.value = index;
+    
+    const track = musicPlaylist[index];
+    currentTrackNameEl.textContent = "Cargando canción...";
+    
+    try {
+        let base64Data;
+        if (preloadedTrackIndex === index && preloadedTrackData) {
+            base64Data = preloadedTrackData;
+            // Clear preload cache
+            preloadedTrackData = null;
+            preloadedTrackIndex = -1;
+        } else {
+            // Fetch the audio file as Base64 from Google Apps Script to bypass Google Drive's strict CORS/cookie restrictions
+            const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getTrack&id=${track.id}`);
+            if (!response.ok) throw new Error("Network response was not ok");
+            base64Data = await response.text();
+        }
+        
+        // Check if the server returned an error message instead of audio data
+        if (base64Data.trim().startsWith('error:') || base64Data.trim().startsWith('{"error"')) {
+            throw new Error("Server error: " + base64Data);
+        }
+        
+        // Clean Base64 string by removing quotes, newlines, and invalid characters
+        base64Data = base64Data.trim();
+        if (base64Data.startsWith('"') && base64Data.endsWith('"')) {
+            base64Data = base64Data.slice(1, -1);
+        }
+        base64Data = base64Data.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+        
+        // Convert Base64 to Blob
+        const sliceSize = 1024;
+        const byteCharacters = atob(base64Data);
+        const byteArrays = [];
+        
+        for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+            const slice = byteCharacters.slice(offset, offset + sliceSize);
+            const byteNumbers = new Array(slice.length);
+            for (let i = 0; i < slice.length; i++) {
+                byteNumbers[i] = slice.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            byteArrays.push(byteArray);
+        }
+        
+        const blob = new Blob(byteArrays, { type: track.mimeType || 'audio/mpeg' });
+        
+        // Revoke old URL if exists to free memory
+        if (musicAudio.src && musicAudio.src.startsWith('blob:')) {
+            URL.revokeObjectURL(musicAudio.src);
+        }
+        
+        const blobUrl = URL.createObjectURL(blob);
+        musicAudio.src = blobUrl;
+        
+        currentTrackNameEl.textContent = track.name;
+        
+        // Play audio
+        musicAudio.play()
+            .then(() => {
+                btnPlayPause.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                btnPlayPause.className = 'btn-player-control btn-play';
+            })
+            .catch(err => {
+                if (err.name !== 'AbortError') {
+                    console.error('Playback error:', err);
+                    currentTrackNameEl.textContent = "Error al reproducir canción";
+                }
+            });
+            
+        // Preload next track
+        triggerNextTrackPreload();
+    } catch (error) {
+        console.error('Error fetching track:', error);
+        if (error.message.includes('máximo') || error.message.includes('supera') || error.message.includes('size')) {
+            currentTrackNameEl.textContent = "Canción muy grande (>25MB)";
+        } else {
+            currentTrackNameEl.textContent = "Error al cargar desde Drive";
+        }
+    }
+}
+
+// Toggle Play/Pause state
+function togglePlayPause() {
+    if (currentTrackIndex === -1 && musicPlaylist.length > 0) {
+        playTrack(0);
+        return;
+    }
+    
+    if (musicAudio.paused) {
+        musicAudio.play()
+            .then(() => {
+                btnPlayPause.innerHTML = '<i class="fa-solid fa-pause"></i>';
+            })
+            .catch(err => console.error(err));
+    } else {
+        musicAudio.pause();
+        btnPlayPause.innerHTML = '<i class="fa-solid fa-play"></i>';
+    }
+}
+
+// Skip to next track
+function nextTrack() {
+    if (musicPlaylist.length === 0) return;
+    
+    if (isRepeat) {
+        playTrack(currentTrackIndex);
+        return;
+    }
+    
+    if (isShuffle) {
+        const randomIndex = Math.floor(Math.random() * musicPlaylist.length);
+        playTrack(randomIndex);
+        return;
+    }
+    
+    let nextIndex = currentTrackIndex + 1;
+    if (nextIndex >= musicPlaylist.length) {
+        nextIndex = 0; // Loop back to start
+    }
+    playTrack(nextIndex);
+}
+
+// Go to previous track
+function prevTrack() {
+    if (musicPlaylist.length === 0) return;
+    
+    if (isShuffle) {
+        const randomIndex = Math.floor(Math.random() * musicPlaylist.length);
+        playTrack(randomIndex);
+        return;
+    }
+    
+    let prevIndex = currentTrackIndex - 1;
+    if (prevIndex < 0) {
+        prevIndex = musicPlaylist.length - 1; // Go to end
+    }
+    playTrack(prevIndex);
+}
+
+// Helper to format seconds into MM:SS
+function formatTime(seconds) {
+    if (isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+// Get the index of the next track depending on Shuffle / Repeat state
+function getNextTrackIndex() {
+    if (musicPlaylist.length === 0) return -1;
+    if (isRepeat) return currentTrackIndex;
+    if (isShuffle) {
+        if (musicPlaylist.length === 1) return 0;
+        let randomIndex = currentTrackIndex;
+        while (randomIndex === currentTrackIndex) {
+            randomIndex = Math.floor(Math.random() * musicPlaylist.length);
+        }
+        return randomIndex;
+    }
+    let nextIndex = currentTrackIndex + 1;
+    if (nextIndex >= musicPlaylist.length) {
+        nextIndex = 0;
+    }
+    return nextIndex;
+}
+
+// Trigger background preload for the next song
+function triggerNextTrackPreload() {
+    const nextIndex = getNextTrackIndex();
+    if (nextIndex !== -1 && nextIndex !== preloadedTrackIndex) {
+        preloadTrack(nextIndex);
+    }
+}
+
+// Fetch track base64 data in the background and store it in cache
+async function preloadTrack(index) {
+    if (index < 0 || index >= musicPlaylist.length) return;
+    if (isPreloading || preloadedTrackIndex === index) return;
+    
+    isPreloading = true;
+    try {
+        const track = musicPlaylist[index];
+        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getTrack&id=${track.id}`);
+        if (response.ok) {
+            const base64Data = await response.text();
+            if (!base64Data.trim().startsWith('error:') && !base64Data.trim().startsWith('{"error"')) {
+                preloadedTrackData = base64Data;
+                preloadedTrackIndex = index;
+                console.log(`[Preloader] Track "${track.name}" preloaded successfully in background.`);
+            }
+        }
+    } catch (err) {
+        console.error('[Preloader] Error preloading track:', err);
+    } finally {
+        isPreloading = false;
     }
 }

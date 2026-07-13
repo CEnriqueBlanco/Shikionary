@@ -129,7 +129,7 @@
                 <div class="vocab-filter-bar">
                     <div class="filter-input-wrapper">
                         <i class="fa-solid fa-filter"></i>
-                        <input type="text" id="filter-input" placeholder="Filtrar palabras...">
+                        <input type="text" id="filter-input" placeholder="Filtrar palabras..." autocomplete="off">
                     </div>
                     <div class="filter-select-wrapper">
                         <select id="filter-section-select" class="section-filter-dropdown" title="Filtrar por sección">
@@ -143,6 +143,43 @@
                     <!-- Saved words items will be dynamically added here -->
                     <div class="empty-list-message">
                         <p>No tienes palabras guardadas en esta línea temporal.</p>
+                    </div>
+                </div>
+
+                <!-- Music Player Widget -->
+                <div class="music-player-widget">
+                    <div class="player-header">
+                        <h3><i class="fa-solid fa-radio"></i> Laboratorio de Música</h3>
+                        <span id="music-track-count" class="badge">0</span>
+                    </div>
+                    <div class="player-body">
+                        <div class="track-info">
+                            <span id="current-track-name" class="track-name">Ninguna canción seleccionada</span>
+                        </div>
+                        <div class="player-controls-wrapper">
+                            <audio id="music-audio" style="display: none;"></audio>
+                            <div class="player-buttons">
+                                <button id="btn-shuffle" class="btn-player-control btn-small" title="Aleatorio"><i class="fa-solid fa-shuffle"></i></button>
+                                <button id="btn-prev-track" class="btn-player-control" title="Anterior"><i class="fa-solid fa-backward-step"></i></button>
+                                <button id="btn-play-pause" class="btn-player-control btn-play" title="Reproducir"><i class="fa-solid fa-play"></i></button>
+                                <button id="btn-next-track" class="btn-player-control" title="Siguiente"><i class="fa-solid fa-forward-step"></i></button>
+                                <button id="btn-repeat" class="btn-player-control btn-small" title="Repetir"><i class="fa-solid fa-repeat"></i></button>
+                            </div>
+                            <div class="player-progress-container">
+                                <span id="current-time" class="time-stamp">0:00</span>
+                                <input type="range" id="progress-bar" class="progress-bar" value="0" min="0" max="100">
+                                <span id="total-time" class="time-stamp">0:00</span>
+                            </div>
+                            <div class="player-volume-container">
+                                <i class="fa-solid fa-volume-low volume-icon"></i>
+                                <input type="range" id="volume-bar" class="volume-bar" value="80" min="0" max="100">
+                            </div>
+                        </div>
+                        <div class="playlist-dropdown-wrapper">
+                            <select id="playlist-select" class="playlist-select" title="Seleccionar canción">
+                                <option value="">Cargando canciones...</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </section>
