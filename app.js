@@ -627,9 +627,14 @@ async function changeTenseForActiveWord(tense) {
     
     examplesList.innerHTML = '<li style="border-left: none; text-align: center; background: none; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Generando ejemplos en ' + (tense === 'present' ? 'presente' : tense === 'past' ? 'pasado' : 'futuro') + '...</li>';
     
-    const examples = await generateAndTranslateExamples(activeWordData.wordEn, activeWordData.partOfSpeech, tense);
-    activeWordData.examples = examples;
+    let examples = [];
+    if (tense === 'present' && activeWordData.realExamples && activeWordData.realExamples.length > 0) {
+        examples = activeWordData.realExamples;
+    } else {
+        examples = await generateAndTranslateExamples(activeWordData.wordEn, activeWordData.partOfSpeech, tense);
+    }
     
+    activeWordData.examples = examples;
     renderActiveWordExamples();
 }
 
@@ -676,6 +681,7 @@ async function translateWord(word) {
         let phoneticText = '';
         let audioUrl = '';
         let partOfSpeech = 'noun';
+        let realExamples = [];
 
         if (activeSearchMode === 'word' && !word.includes(' ')) {
             const dictUrl = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
@@ -703,11 +709,65 @@ async function translateWord(word) {
                 if (entry.meanings && entry.meanings.length > 0) {
                     partOfSpeech = entry.meanings[0].partOfSpeech || 'noun';
                 }
+                
+                // Extract real examples from Dictionary API
+                let rawExamples = [];
+                for (const item of dictData) {
+                    if (!item.meanings) continue;
+                    for (const meaning of item.meanings) {
+                        if (!meaning.definitions) continue;
+                        for (const def of meaning.definitions) {
+                            if (def.example && def.example.trim() !== '') {
+                                rawExamples.push({
+                                    type: meaning.partOfSpeech || 'Ejemplo',
+                                    en: def.example.trim()
+                                });
+                            }
+                        }
+                    }
+                }
+                
+                // Remove duplicates
+                const seen = new Set();
+                const uniqueRawExamples = [];
+                for (const ex of rawExamples) {
+                    const norm = ex.en.toLowerCase();
+                    if (!seen.has(norm)) {
+                        seen.add(norm);
+                        uniqueRawExamples.push(ex);
+                    }
+                }
+                
+                // Translate first 3 examples in parallel
+                const selectedExamples = uniqueRawExamples.slice(0, 3);
+                if (selectedExamples.length > 0) {
+                    const translationPromises = selectedExamples.map(async (ex) => {
+                        let translatedEs = 'Traducción no disponible';
+                        try {
+                            const exTransUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(ex.en)}&langpair=en|es`;
+                            const exTransRes = await fetch(exTransUrl);
+                            if (exTransRes.ok) {
+                                const exTransData = await exTransRes.json();
+                                translatedEs = exTransData.responseData.translatedText;
+                            }
+                        } catch (e) {
+                            console.log('Error translating real example:', e);
+                        }
+                        return {
+                            type: ex.type,
+                            en: ex.en,
+                            es: translatedEs,
+                            isReal: true
+                        };
+                    });
+                    
+                    realExamples = await Promise.all(translationPromises);
+                }
             }
         }
 
-        // Generate customized examples for the selected tense (Affirmative, Negative, Interrogative)
-        const examples = await generateAndTranslateExamples(word, partOfSpeech, activeTense);
+        // Use real examples if found, otherwise generate fallback structured templates
+        const examples = realExamples.length > 0 ? realExamples : await generateAndTranslateExamples(word, partOfSpeech, activeTense);
 
         // Set the active word data
         activeWordData = {
@@ -716,7 +776,8 @@ async function translateWord(word) {
             phonetic: phoneticText,
             audio: audioUrl,
             partOfSpeech: partOfSpeech,
-            examples: examples
+            examples: examples,
+            realExamples: realExamples
         };
 
         // Render result card
