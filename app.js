@@ -627,13 +627,7 @@ async function changeTenseForActiveWord(tense) {
     
     examplesList.innerHTML = '<li style="border-left: none; text-align: center; background: none; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Generando ejemplos en ' + (tense === 'present' ? 'presente' : tense === 'past' ? 'pasado' : 'futuro') + '...</li>';
     
-    let examples = [];
-    if (tense === 'present' && activeWordData.realExamples && activeWordData.realExamples.length > 0) {
-        examples = activeWordData.realExamples;
-    } else {
-        examples = await generateAndTranslateExamples(activeWordData.wordEn, activeWordData.partOfSpeech, tense);
-    }
-    
+    const examples = await generateAndTranslateExamples(activeWordData.wordEn, activeWordData.partOfSpeech, tense);
     activeWordData.examples = examples;
     renderActiveWordExamples();
 }
@@ -766,8 +760,8 @@ async function translateWord(word) {
             }
         }
 
-        // Use real examples if found, otherwise generate fallback structured templates
-        const examples = realExamples.length > 0 ? realExamples : await generateAndTranslateExamples(word, partOfSpeech, activeTense);
+        // Generate customized examples for all tenses to ensure Affirmative/Negative/Interrogative consistency
+        const examples = await generateAndTranslateExamples(word, partOfSpeech, activeTense);
 
         // Set the active word data
         activeWordData = {
