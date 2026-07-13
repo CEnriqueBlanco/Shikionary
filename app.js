@@ -36,6 +36,7 @@ const resultWordEs = document.getElementById('result-word-es');
 const examplesList = document.getElementById('examples-list');
 const saveSectionSelect = document.getElementById('save-section-select');
 const btnSaveWord = document.getElementById('btn-save-word');
+const searchSuggestions = document.getElementById('search-suggestions');
 
 // Sidebar and list elements
 const vocabularyList = document.getElementById('vocabulary-list');
@@ -103,20 +104,58 @@ function initEventListeners() {
         }
     });
 
-    // Clear search input & Filter saved list as user types
+    // Clear search input & Filter saved list as user types (with autocomplete suggestions)
     searchInput.addEventListener('input', () => {
         const query = searchInput.value.trim();
         filterInput.value = query; // Sync value to the filter input
         renderVocabularyList(query); // Filter the list in real-time
         btnClear.style.display = searchInput.value ? 'block' : 'none';
+
+        // Autocomplete suggestions logic
+        const lowerQuery = query.toLowerCase();
+        if (lowerQuery.length > 0) {
+            const matches = savedWords.filter(w => w.wordEn.toLowerCase().includes(lowerQuery)).slice(0, 5);
+            if (matches.length > 0) {
+                searchSuggestions.innerHTML = '';
+                matches.forEach(match => {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.innerHTML = `
+                        <span>${match.wordEn}</span>
+                        <span class="suggestion-translation">${match.wordEs}</span>
+                    `;
+                    div.addEventListener('click', () => {
+                        searchInput.value = match.wordEn;
+                        searchSuggestions.style.display = 'none';
+                        filterInput.value = match.wordEn;
+                        renderVocabularyList(match.wordEn);
+                        translateWord(match.wordEn);
+                    });
+                    searchSuggestions.appendChild(div);
+                });
+                searchSuggestions.style.display = 'block';
+            } else {
+                searchSuggestions.style.display = 'none';
+            }
+        } else {
+            searchSuggestions.style.display = 'none';
+        }
     });
 
     btnClear.addEventListener('click', () => {
         searchInput.value = '';
         btnClear.style.display = 'none';
+        searchSuggestions.style.display = 'none'; // Hide suggestions
         filterInput.value = ''; // Reset filter
         renderVocabularyList(''); // Show all words again
         searchInput.focus();
+    });
+
+    // Close suggestions dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !searchSuggestions.contains(e.target)) {
+            searchSuggestions.style.display = 'none';
+        }
     });
 
     // Save word button click

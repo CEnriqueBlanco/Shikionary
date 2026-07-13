@@ -208,6 +208,47 @@ body {
     align-items: center;
 }
 
+.search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    max-height: 220px;
+    overflow-y: auto;
+    margin-top: 4px;
+}
+
+.suggestion-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    transition: var(--transition);
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: var(--bg-secondary);
+    color: var(--accent-red);
+}
+
+.suggestion-translation {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
 .search-input-icon {
     position: absolute;
     left: 12px;
