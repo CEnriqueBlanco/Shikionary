@@ -1,5 +1,5 @@
 // CONFIGURACIÓN DE GOOGLE SHEETS (Sincronización en la nube)
-export const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwliI-YwdoEO4C8QZMs9CHgv7HtAOQRt3-b_QIWNQa5GZpTVf_ERBhXOF5rPapJ8dbI/exec';
+export const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyqu9-JonYa2H3F-SJaGDvjV1HGIYklsMncrJIqHk5jrA4F-fZWbF7RWb0UMXg0Z0Hu/exec';
 
 // Global State object to share references between modules
 export const state = {
@@ -15,5 +15,7 @@ export const state = {
     isRepeat: false,
     preloadedTrackData: null,
     preloadedTrackIndex: -1,
-    isPreloading: false
+    isPreloading: false,
+    activeMusicSource: 'radio', // Can be 'api-lofi', 'api-ambient', 'radio', 'radio-jpop', or 'drive'
+    activeAudioId: 'music-audio-direct' // Set to music-audio-direct initially since radio is the default
 };

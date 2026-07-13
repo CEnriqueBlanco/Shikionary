@@ -1415,6 +1415,224 @@ body {
     height: 100%;
 }
 
+/* Pomodoro Timer Styles */
+/* Pomodoro Header Timer Styles */
+.header-pomodoro-timer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: var(--nixie-bg);
+    border: 1px solid #332B28;
+    border-radius: var(--radius-md);
+    padding: 6px 12px;
+    height: 38px;
+}
+
+.header-pomodoro-timer i {
+    color: var(--nixie-glow);
+    font-size: 0.9rem;
+}
+
+#pomodoro-time {
+    font-family: var(--font-mono);
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--nixie-glow);
+    text-shadow: 0 0 8px rgba(255, 94, 19, 0.4);
+    letter-spacing: 1px;
+    min-width: 55px;
+    text-align: center;
+}
+
+.btn-pomo-header-ctrl {
+    background: transparent;
+    border: none;
+    color: var(--nixie-glow);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.btn-pomo-header-ctrl:hover {
+    color: #FFFFFF;
+    text-shadow: 0 0 5px var(--nixie-glow);
+}
+
+.pomo-header-select {
+    background-color: rgba(255, 94, 19, 0.05);
+    border: 1px solid var(--nixie-glow-dim);
+    color: var(--nixie-glow);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-sans);
+    transition: var(--transition);
+}
+
+.pomo-header-select:hover {
+    border-color: var(--nixie-glow);
+    background-color: rgba(255, 94, 19, 0.15);
+    box-shadow: 0 0 6px rgba(255, 94, 19, 0.3);
+}
+
+.pomo-header-select option {
+    background-color: #151110;
+    color: var(--nixie-glow);
+}
+
+/* Custom Pomodoro Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(18, 15, 14, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.modal-content {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-width: 400px;
+    padding: 25px;
+    animation: modalFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+}
+
+.modal-header h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent-red);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-close-modal {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.btn-close-modal:hover {
+    color: var(--accent-red);
+}
+
+.pomo-input-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+#pomo-custom-input {
+    width: 80px;
+    padding: 8px 12px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-main);
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-align: center;
+    outline: none;
+    transition: var(--transition);
+}
+
+#pomo-custom-input:focus {
+    border-color: var(--accent-red);
+    box-shadow: 0 0 5px rgba(178, 59, 37, 0.2);
+}
+
+.pomo-input-label {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.pomo-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.pomo-modal-actions .btn-accent {
+    background-color: var(--accent-red);
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: var(--transition);
+}
+
+.pomo-modal-actions .btn-accent:hover {
+    background-color: var(--accent-red-hover);
+    box-shadow: 0 0 8px rgba(178, 59, 37, 0.3);
+}
+
+.pomo-modal-actions .btn-secondary {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    padding: 8px 20px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: var(--transition);
+}
+
+.pomo-modal-actions .btn-secondary:hover {
+    background-color: var(--bg-secondary);
+    border-color: var(--text-muted);
+}
+
 /* 5. Vista de Repaso (Flashcards) */
 .review-screen-overlay {
     position: fixed;

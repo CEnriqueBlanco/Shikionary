@@ -5,6 +5,7 @@ import { updateDivergenceMeter } from './js/nixie.js';
 import { toggleSpeechRecognition } from './js/voice.js';
 import { startReviewSession, closeReviewSession, flipReviewCard, markReviewWord } from './js/review.js';
 import { initAudioVisualizer, loadMusicData, playTrack, togglePlayPause, nextTrack, prevTrack } from './js/music.js';
+import { initPomodoro } from './js/pomodoro.js';
 
 // DOM Elements
 const searchForm = document.getElementById('search-form');
@@ -48,6 +49,7 @@ const btnPrevTrack = document.getElementById('btn-prev-track');
 const btnNextTrack = document.getElementById('btn-next-track');
 const btnShuffle = document.getElementById('btn-shuffle');
 const btnRepeat = document.getElementById('btn-repeat');
+const btnMusicSource = document.getElementById('btn-music-source');
 const progressBar = document.getElementById('progress-bar');
 const volumeBar = document.getElementById('volume-bar');
 const currentTimeEl = document.getElementById('current-time');
@@ -61,6 +63,7 @@ window.addEventListener('DOMContentLoaded', () => {
     loadSettings();
     initEventListeners();
     initAudioVisualizer();
+    initPomodoro();
     
     // Load words data using our API module with callbacks to update UI
     loadWordsData({
@@ -336,6 +339,35 @@ function initEventListeners() {
         btnRepeat.classList.toggle('active', state.isRepeat);
     });
     
+    btnMusicSource.addEventListener('click', async () => {
+        if (btnMusicSource.disabled) return;
+        btnMusicSource.disabled = true;
+        
+        try {
+            if (state.activeMusicSource === 'api-lofi') {
+                state.activeMusicSource = 'api-ambient';
+            } else if (state.activeMusicSource === 'api-ambient') {
+                state.activeMusicSource = 'radio';
+            } else if (state.activeMusicSource === 'radio') {
+                state.activeMusicSource = 'radio-jpop';
+            } else if (state.activeMusicSource === 'radio-jpop') {
+                state.activeMusicSource = 'drive';
+            } else {
+                state.activeMusicSource = 'api-lofi';
+            }
+            await loadMusicData(playlistSelect, musicTrackCount);
+            
+            // Automatically play the first track of the new source
+            if (state.musicPlaylist.length > 0) {
+                playTrack(0, playlistSelect, currentTrackNameEl, btnPlayPause);
+            }
+        } catch (err) {
+            console.error('Error switching music source:', err);
+        } finally {
+            btnMusicSource.disabled = false;
+        }
+    });
+    
     playlistSelect.addEventListener('change', (e) => {
         const index = parseInt(e.target.value);
         if (!isNaN(index) && index >= 0 && index < state.musicPlaylist.length) {
@@ -344,32 +376,53 @@ function initEventListeners() {
     });
     
     const musicAudio = document.getElementById('music-audio');
-    musicAudio.addEventListener('timeupdate', () => {
-        if (musicAudio.duration) {
-            const pct = (musicAudio.currentTime / musicAudio.duration) * 100;
-            progressBar.value = pct;
-            currentTimeEl.textContent = formatTime(musicAudio.currentTime);
-        }
-    });
+    const musicAudioDirect = document.getElementById('music-audio-direct');
     
-    musicAudio.addEventListener('durationchange', () => {
-        if (musicAudio.duration) {
-            totalTimeEl.textContent = formatTime(musicAudio.duration);
-        }
-    });
+    function bindAudioEvents(audio) {
+        audio.addEventListener('timeupdate', () => {
+            if (audio.id !== state.activeAudioId) return;
+            if (audio.duration && isFinite(audio.duration)) {
+                const pct = (audio.currentTime / audio.duration) * 100;
+                progressBar.value = pct;
+                currentTimeEl.textContent = formatTime(audio.currentTime);
+            } else {
+                currentTimeEl.textContent = formatTime(audio.currentTime);
+            }
+        });
+        
+        audio.addEventListener('durationchange', () => {
+            if (audio.id !== state.activeAudioId) return;
+            if (audio.duration && isFinite(audio.duration)) {
+                totalTimeEl.textContent = formatTime(audio.duration);
+            } else {
+                totalTimeEl.textContent = 'En Vivo';
+            }
+        });
+        
+        audio.addEventListener('ended', () => {
+            if (audio.id !== state.activeAudioId) return;
+            nextTrack(playlistSelect, currentTrackNameEl, btnPlayPause);
+        });
+    }
+    
+    if (musicAudio && musicAudioDirect) {
+        bindAudioEvents(musicAudio);
+        bindAudioEvents(musicAudioDirect);
+    }
     
     progressBar.addEventListener('input', (e) => {
-        if (musicAudio.duration) {
-            const time = (e.target.value / 100) * musicAudio.duration;
-            musicAudio.currentTime = time;
+        const activeAudio = document.getElementById(state.activeAudioId);
+        if (activeAudio && activeAudio.duration && isFinite(activeAudio.duration)) {
+            const time = (e.target.value / 100) * activeAudio.duration;
+            activeAudio.currentTime = time;
         }
     });
     
     volumeBar.addEventListener('input', (e) => {
-        musicAudio.volume = e.target.value / 100;
+        const vol = e.target.value / 100;
+        if (musicAudio) musicAudio.volume = vol;
+        if (musicAudioDirect) musicAudioDirect.volume = vol;
     });
-    
-    musicAudio.addEventListener('ended', () => nextTrack(playlistSelect, currentTrackNameEl, btnPlayPause));
 
     // Flashcard Time Loop Review listeners
     const btnStartReview = document.getElementById('btn-start-review');

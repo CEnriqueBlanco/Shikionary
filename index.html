@@ -31,6 +31,19 @@
                 <span class="divergence-label">DIVERGENCE:</span>
                 <span id="divergence-meter" class="divergence-value">0.000000</span>
             </div>
+            
+            <!-- Pomodoro Header Widget -->
+            <div class="header-pomodoro-timer" title="Temporizador Pomodoro">
+                <i class="fa-solid fa-stopwatch"></i>
+                <span id="pomodoro-time">25:00</span>
+                <button id="btn-pomo-start" class="btn-pomo-header-ctrl" title="Iniciar/Pausar"><i class="fa-solid fa-play"></i></button>
+                <button id="btn-pomo-reset" class="btn-pomo-header-ctrl" title="Reiniciar"><i class="fa-solid fa-arrow-rotate-left"></i></button>
+                <select id="pomo-mode-select" class="pomo-header-select" title="Cambiar modo">
+                    <option value="work">Trabajo (25m)</option>
+                    <option value="short">Descanso (5m)</option>
+                    <option value="long">Recreo (15m)</option>
+                </select>
+            </div>
 
             <div class="header-actions">
                 <button id="btn-start-review" class="btn-review-trigger" title="Repasar vocabulario (Bucle Temporal)">
@@ -181,13 +194,15 @@
                             <span id="current-track-name" class="track-name">Ninguna canción seleccionada</span>
                         </div>
                         <div class="player-controls-wrapper">
-                            <audio id="music-audio" style="display: none;"></audio>
-                            <div class="player-buttons">
+                             <audio id="music-audio" style="display: none;"></audio>
+                             <audio id="music-audio-direct" style="display: none;"></audio>
+                             <div class="player-buttons">
                                 <button id="btn-shuffle" class="btn-player-control btn-small" title="Aleatorio"><i class="fa-solid fa-shuffle"></i></button>
                                 <button id="btn-prev-track" class="btn-player-control" title="Anterior"><i class="fa-solid fa-backward-step"></i></button>
                                 <button id="btn-play-pause" class="btn-player-control btn-play" title="Reproducir"><i class="fa-solid fa-play"></i></button>
                                 <button id="btn-next-track" class="btn-player-control" title="Siguiente"><i class="fa-solid fa-forward-step"></i></button>
                                 <button id="btn-repeat" class="btn-player-control btn-small" title="Repetir"><i class="fa-solid fa-repeat"></i></button>
+                                <button id="btn-music-source" class="btn-player-control btn-small" title="Origen: Lofi API"><i class="fa-solid fa-music"></i></button>
                             </div>
                             <div class="player-progress-container">
                                 <span id="current-time" class="time-stamp">0:00</span>
@@ -309,6 +324,26 @@
                         <i class="fa-solid fa-circle-check"></i> Fijar Línea (Acierto)
                     </button>
                 </footer>
+            </div>
+        </div>
+    </div>
+    <!-- Custom Pomodoro Time Modal -->
+    <div id="pomo-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content pomo-modal-content">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-stopwatch text-accent"></i> Personalizar Tiempo</h3>
+                <button id="btn-close-pomo-modal" class="btn-close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Establece los minutos para el temporizador:</p>
+                <div class="pomo-input-row">
+                    <input type="number" id="pomo-custom-input" min="1" max="180" value="25" />
+                    <span class="pomo-input-label">minutos</span>
+                </div>
+                <div class="pomo-modal-actions">
+                    <button id="btn-cancel-pomo-time" class="btn-secondary">Cancelar</button>
+                    <button id="btn-save-pomo-time" class="btn-accent">Aceptar</button>
+                </div>
             </div>
         </div>
     </div>
