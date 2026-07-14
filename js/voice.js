@@ -18,13 +18,15 @@ export function initSpeechRecognition() {
     return true;
 }
 
-export function toggleSpeechRecognition(targetWord, btnMic, onResult) {
+export function toggleSpeechRecognition(targetWord, btnMic, onResult, langCode = 'en-US') {
     if (!recognition) {
         if (!initSpeechRecognition()) {
             showAlert('El reconocimiento de voz no está soportado en este navegador. Te recomendamos usar Google Chrome.', 'Voz no compatible', 'error');
             return;
         }
     }
+
+    recognition.lang = langCode;
 
     if (isListening) {
         recognition.stop();
@@ -34,11 +36,11 @@ export function toggleSpeechRecognition(targetWord, btnMic, onResult) {
     isListening = true;
     btnMic.classList.add('recording');
     btnMic.innerHTML = '<i class="fa-solid fa-microphone fa-spin"></i>';
-    btnMic.setAttribute('title', 'Escuchando... Di la palabra en inglés.');
+    btnMic.setAttribute('title', 'Escuchando... Di la palabra mostrada.');
 
     recognition.onresult = (event) => {
-        const spokenWord = event.results[0][0].transcript.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '');
-        const cleanTarget = targetWord.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '');
+        const spokenWord = event.results[0][0].transcript.toLocaleLowerCase().trim().replace(/[^\p{L}\p{N}\s]/gu, '');
+        const cleanTarget = targetWord.toLocaleLowerCase().trim().replace(/[^\p{L}\p{N}\s]/gu, '');
         
         const isMatch = spokenWord === cleanTarget;
         onResult({

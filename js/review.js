@@ -126,15 +126,12 @@ function renderCurrentReviewCard() {
     const toCode   = wordPair.split('|')[1];
     const langLabels = { en: 'INGLÉS', de: 'ALEMÁN', es: 'ESPAÑOL', fr: 'FRANCÉS', it: 'ITALIANO' };
     const ttsLang   = { en: 'en-US',  de: 'de-DE',  es: 'es-ES',  fr: 'fr-FR',  it: 'it-IT' };
-    const langLabel = langLabels[fromCode] || fromCode.toUpperCase();
-
-    // The audio ALWAYS speaks the foreign language (English or German), NEVER Spanish.
-    // Rule: if source is Spanish, speak the TRANSLATION in target language.
-    //       otherwise speak the source word in source language.
     const isSrcSpanish = fromCode === 'es';
-    const ttsText  = isSrcSpanish ? word.wordEs  : word.wordEn;
-    const ttsCode  = isSrcSpanish ? (ttsLang[toCode]   || 'en-US')
-                                  : (ttsLang[fromCode] || 'en-US');
+    const learningCode = isSrcSpanish ? toCode : fromCode;
+    const foreignWord = isSrcSpanish ? word.wordEs : word.wordEn;
+    const spanishWord = isSrcSpanish ? word.wordEn : word.wordEs;
+    const langLabel = langLabels[learningCode] || learningCode.toUpperCase();
+    const ttsCode = ttsLang[learningCode] || 'en-US';
 
     // Update front card label to show correct language
     const frontLabel = document.querySelector('.flashcard-front .flashcard-label');
@@ -143,7 +140,7 @@ function renderCurrentReviewCard() {
     // Render Front Card
     const frontWord = document.getElementById('review-front-word');
     const frontPhonetic = document.getElementById('review-front-phonetic');
-    if (frontWord) frontWord.textContent = word.wordEn;
+    if (frontWord) frontWord.textContent = foreignWord;
 
     // Only show phonetic if there's real data
     if (frontPhonetic) {
@@ -156,39 +153,25 @@ function renderCurrentReviewCard() {
         }
     }
 
-    // Wire up audio button — always pronounces in English or German, never Spanish
+    // The review card only plays the recording persisted with this word.
     const reviewAudioBtn = document.getElementById('review-btn-audio');
     if (reviewAudioBtn) {
         const newAudioBtn = reviewAudioBtn.cloneNode(true);
         reviewAudioBtn.parentNode.replaceChild(newAudioBtn, reviewAudioBtn);
+        const savedAudioUrl = typeof word.audio === 'string' ? word.audio.trim() : '';
+        newAudioBtn.style.display = savedAudioUrl ? 'flex' : 'none';
+        newAudioBtn.title = savedAudioUrl
+            ? 'Reproducir audio guardado'
+            : 'Esta palabra no tiene audio guardado';
+
         newAudioBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (!savedAudioUrl) return;
 
-            const speakWithBrowser = () => {
-                if (!ttsText || !('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
-                    console.warn('Speech synthesis is not supported by this browser.');
-                    return;
-                }
-
-                const language = ttsCode.split('-')[0];
-                const utterance = new SpeechSynthesisUtterance(ttsText);
-                utterance.lang = ttsCode;
-                const voices = window.speechSynthesis.getVoices();
-                const best = voices.find(v => v.lang === ttsCode && !v.localService)
-                          || voices.find(v => v.lang.startsWith(language));
-                if (best) utterance.voice = best;
-                window.speechSynthesis.cancel();
-                window.speechSynthesis.speak(utterance);
-            };
-
-            // Prefer a saved DictionaryAPI/Wiktionary recording.
-            if (word.audio) {
-                const audio = new Audio(word.audio);
-                audio.play().catch(speakWithBrowser);
-                return;
-            }
-
-            speakWithBrowser();
+            const audio = new Audio(savedAudioUrl);
+            audio.play().catch(error => {
+                console.error('No se pudo reproducir el audio guardado:', savedAudioUrl, error);
+            });
         });
     }
 
@@ -198,8 +181,11 @@ function renderCurrentReviewCard() {
     const backExamples = document.getElementById('review-back-examples');
     const backNotes = document.getElementById('review-back-notes');
     
-    if (backWordEn) backWordEn.textContent = word.wordEn;
-    if (backTranslation) backTranslation.textContent = word.wordEs;
+    if (backTranslation) backTranslation.textContent = `${spanishWord} / ${foreignWord}`;
+    if (backWordEn) {
+        backWordEn.textContent = '';
+        backWordEn.style.display = 'none';
+    }
     
     // Render examples list
     if (backExamples) {
@@ -245,7 +231,7 @@ function renderCurrentReviewCard() {
         micBtn.parentNode.replaceChild(newMicBtn, micBtn);
         
         newMicBtn.addEventListener('click', () => {
-            toggleSpeechRecognition(word.wordEn, newMicBtn, (result) => {
+            toggleSpeechRecognition(foreignWord, newMicBtn, (result) => {
                 if (statusFeedback) {
                     if (result.success) {
                         statusFeedback.textContent = `¡Excelente pronunciación! (${result.spoken})`;
@@ -261,7 +247,7 @@ function renderCurrentReviewCard() {
                         statusFeedback.className = 'voice-status-feedback fail';
                     }
                 }
-            });
+            }, ttsCode);
         });
     }
 }

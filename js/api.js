@@ -1,6 +1,24 @@
 import { GOOGLE_SHEETS_URL, state } from './config.js';
 import { showAlert } from './modal.js';
 
+function selectAmericanPronunciation(entries) {
+    const safeEntries = Array.isArray(entries) ? entries : [];
+    const phonetics = safeEntries.flatMap(entry => entry.phonetics || []);
+    const isUsAudio = item => item.audio?.trim() && /[-_]us\.(mp3|ogg|wav)(?:\?|$)/i.test(item.audio);
+    const isUkAudio = item => item.audio?.trim() && /[-_]uk\.(mp3|ogg|wav)(?:\?|$)/i.test(item.audio);
+    const audioItem = phonetics.find(isUsAudio)
+        || phonetics.find(item => item.audio?.trim() && !isUkAudio(item))
+        || phonetics.find(item => item.audio?.trim());
+    const matchingEntry = safeEntries.find(entry => (entry.phonetics || []).includes(audioItem)) || safeEntries[0] || {};
+    const phonetic = audioItem?.text
+        || matchingEntry.phonetic
+        || matchingEntry.phonetics?.find(item => item.text)?.text
+        || phonetics.find(item => item.text)?.text
+        || '';
+
+    return { phonetic, audio: audioItem?.audio || '' };
+}
+
 export async function fetchGermanWiktionaryAudio(word) {
     if (!word || word.includes(' ')) return '';
 
@@ -39,13 +57,41 @@ export async function fetchWordPronunciation(word, langCode) {
         const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
         if (!response.ok) return { phonetic: '', audio: '' };
         const entries = await response.json();
-        const entry = entries[0] || {};
-        const phonetic = entry.phonetic || entry.phonetics?.find(item => item.text)?.text || '';
-        const audio = entry.phonetics?.find(item => item.audio?.trim())?.audio || '';
-        return { phonetic, audio };
+        return selectAmericanPronunciation(entries);
     } catch (error) {
         console.warn('Dictionary pronunciation unavailable:', error.message);
         return { phonetic: '', audio: '' };
+    }
+}
+
+export async function fetchAlternativeDescription(word, langCode) {
+    if (!word || !langCode) return '';
+
+    try {
+        // English Wiktionary exposes structured entries for many languages;
+        // their definition text is in English, which we then show in Spanish.
+        const url = `https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`;
+        const response = await fetch(url);
+        if (!response.ok) return '';
+        const data = await response.json();
+        const languageEntries = data[langCode] || [];
+        const rawDefinition = languageEntries
+            .flatMap(entry => entry.definitions || [])
+            .find(item => item.definition)?.definition;
+        if (!rawDefinition) return '';
+
+        const parsed = new DOMParser().parseFromString(rawDefinition, 'text/html');
+        const englishDefinition = parsed.body.textContent?.trim() || '';
+        if (!englishDefinition) return '';
+
+        const translationUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(englishDefinition)}&langpair=en|es`;
+        const translationResponse = await fetch(translationUrl);
+        if (!translationResponse.ok) return englishDefinition;
+        const translationData = await translationResponse.json();
+        return translationData.responseData?.translatedText?.trim() || englishDefinition;
+    } catch (error) {
+        console.warn('Alternative definition unavailable:', error.message);
+        return '';
     }
 }
 
@@ -374,18 +420,9 @@ export async function translateWord(word, callbacks = {}) {
                 isWordInDictionary = true;
                 const dictData = await dictResponse.json();
                 const entry = dictData[0];
-                
-                phoneticText = entry.phonetic || '';
-                if (!phoneticText && entry.phonetics && entry.phonetics.length > 0) {
-                    phoneticText = entry.phonetics.find(p => p.text)?.text || '';
-                }
-
-                if (entry.phonetics && entry.phonetics.length > 0) {
-                    const audioObj = entry.phonetics.find(p => p.audio && p.audio.trim() !== '');
-                    if (audioObj) {
-                        audioUrl = audioObj.audio;
-                    }
-                }
+                const pronunciation = selectAmericanPronunciation(dictData);
+                phoneticText = pronunciation.phonetic;
+                audioUrl = pronunciation.audio;
                 
                 if (entry.meanings && entry.meanings.length > 0) {
                     partOfSpeech = entry.meanings[0].partOfSpeech || 'noun';

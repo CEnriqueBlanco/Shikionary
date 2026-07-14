@@ -1,5 +1,5 @@
 import { state } from './js/config.js';
-import { loadWordsData, saveWordsData, translateWord, updateSyncStatus, registerUserAPI, loginUserAPI, generatePairExamples, fetchWordPronunciation } from './js/api.js';
+import { loadWordsData, saveWordsData, translateWord, updateSyncStatus, registerUserAPI, loginUserAPI, generatePairExamples, fetchWordPronunciation, fetchAlternativeDescription } from './js/api.js';
 import { generateAndTranslateExamples, capitalize } from './js/nlp.js';
 import { updateDivergenceMeter } from './js/nixie.js';
 import { toggleSpeechRecognition } from './js/voice.js';
@@ -810,6 +810,8 @@ function renderTranslationAlternatives(data) {
     }
 
     alternatives.forEach(alternative => {
+        const optionCard = document.createElement('div');
+        optionCard.className = 'translation-option-card';
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `translation-option${alternative === data.wordEs ? ' active' : ''}`;
@@ -841,9 +843,25 @@ function renderTranslationAlternatives(data) {
 
             renderTranslationAlternatives(data);
         });
-        translationAlternatives.appendChild(button);
+
+        const description = document.createElement('p');
+        description.className = 'translation-option-description';
+        const descriptions = data.alternativeDescriptions || (data.alternativeDescriptions = {});
+        if (Object.hasOwn(descriptions, alternative)) {
+            description.textContent = descriptions[alternative] || 'Sin descripción disponible.';
+        } else {
+            description.textContent = 'Buscando significado…';
+            const targetCode = (data.langpair || state.translationPair || 'en|es').split('|')[1];
+            fetchAlternativeDescription(alternative, targetCode).then(text => {
+                descriptions[alternative] = text;
+                description.textContent = text || 'Sin descripción disponible.';
+            });
+        }
+
+        optionCard.append(button, description);
+        translationAlternatives.appendChild(optionCard);
     });
-    translationAlternatives.style.display = 'flex';
+    translationAlternatives.style.display = 'grid';
 }
 
 // Render only the examples list on the result card
