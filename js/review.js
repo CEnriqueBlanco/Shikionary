@@ -193,10 +193,13 @@ function renderCurrentReviewCard() {
         const examplesToRender = word.examples || [];
         examplesToRender.slice(0, 2).forEach(ex => {
             const li = document.createElement('li');
-            li.innerHTML = `
-                <span class="review-ex-en">${ex.en}</span>
-                <span class="review-ex-es">${ex.es}</span>
-            `;
+            const sourceExample = document.createElement('span');
+            sourceExample.className = 'review-ex-en';
+            sourceExample.textContent = ex.en || '';
+            const translatedExample = document.createElement('span');
+            translatedExample.className = 'review-ex-es';
+            translatedExample.textContent = ex.es || '';
+            li.append(sourceExample, translatedExample);
             backExamples.appendChild(li);
         });
     }
@@ -207,7 +210,11 @@ function renderCurrentReviewCard() {
         backNotes.oninput = (e) => {
             word.notes = e.target.value;
             // Update in savedWords
-            const mainWord = state.savedWords.find(w => w.wordEn.toLowerCase() === word.wordEn.toLowerCase());
+            const wordPair = word.langpair || localStorage.getItem('shike_lang_pair') || 'en|es';
+            const mainWord = state.savedWords.find(w =>
+                w.wordEn.toLowerCase() === word.wordEn.toLowerCase()
+                && (w.langpair || wordPair) === wordPair
+            );
             if (mainWord) {
                 mainWord.notes = e.target.value;
                 // Auto-save debounced or on change

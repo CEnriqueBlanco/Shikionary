@@ -186,7 +186,10 @@ function initEventListeners() {
             statusFeedback.textContent = '';
             statusFeedback.className = 'voice-status-feedback';
 
-            toggleSpeechRecognition(state.activeWordData.wordEn, btnMic, (result) => {
+            const [fromCode, toCode] = (state.activeWordData.langpair || state.translationPair || 'en|es').split('|');
+            const practiceText = fromCode === 'es' ? state.activeWordData.wordEs : state.activeWordData.wordEn;
+            const practiceLocale = { en: 'en-US', de: 'de-DE', es: 'es-ES' }[fromCode === 'es' ? toCode : fromCode] || 'en-US';
+            toggleSpeechRecognition(practiceText, btnMic, (result) => {
                 if (result.success) {
                     statusFeedback.textContent = `¡Pronunciación correcta!`;
                     statusFeedback.className = 'voice-status-feedback success';
@@ -194,7 +197,7 @@ function initEventListeners() {
                     statusFeedback.textContent = `Escuché: "${result.spoken}"`;
                     statusFeedback.className = 'voice-status-feedback fail';
                 }
-            });
+            }, practiceLocale);
         }
     });
 
@@ -205,7 +208,11 @@ function initEventListeners() {
             state.activeWordData.notes = e.target.value;
             
             // Sync notes to the saved words list
-            const savedWordIndex = state.savedWords.findIndex(w => w.wordEn.toLowerCase() === state.activeWordData.wordEn.toLowerCase());
+            const activePair = state.activeWordData.langpair || state.translationPair || 'en|es';
+            const savedWordIndex = state.savedWords.findIndex(w =>
+                w.wordEn.toLowerCase() === state.activeWordData.wordEn.toLowerCase()
+                && (w.langpair || activePair) === activePair
+            );
             if (savedWordIndex >= 0) {
                 state.savedWords[savedWordIndex].notes = e.target.value;
                 
@@ -328,7 +335,7 @@ function initEventListeners() {
     // Audio button click — always pronounces in the FOREIGN language (English or German), never Spanish
     btnAudio.addEventListener('click', () => {
         if (!state.activeWordData) return;
-        const pair = state.translationPair || 'en|es';
+        const pair = state.activeWordData.langpair || state.translationPair || 'en|es';
         const fromCode = pair.split('|')[0];
         const toCode   = pair.split('|')[1];
 
@@ -367,7 +374,11 @@ function initEventListeners() {
                 if (state.activeWordData) {
                     state.activeWordData.section = cleanedSec;
                     // If word is saved, update section in list
-                    const savedWord = state.savedWords.find(w => w.wordEn.toLowerCase() === state.activeWordData.wordEn.toLowerCase());
+                    const activePair = state.activeWordData.langpair || state.translationPair || 'en|es';
+                    const savedWord = state.savedWords.find(w =>
+                        w.wordEn.toLowerCase() === state.activeWordData.wordEn.toLowerCase()
+                        && (w.langpair || activePair) === activePair
+                    );
                     if (savedWord) {
                         savedWord.section = cleanedSec;
                         saveWordsData();
@@ -379,7 +390,11 @@ function initEventListeners() {
         } else {
             if (state.activeWordData) {
                 state.activeWordData.section = e.target.value;
-                const savedWord = state.savedWords.find(w => w.wordEn.toLowerCase() === state.activeWordData.wordEn.toLowerCase());
+                const activePair = state.activeWordData.langpair || state.translationPair || 'en|es';
+                const savedWord = state.savedWords.find(w =>
+                    w.wordEn.toLowerCase() === state.activeWordData.wordEn.toLowerCase()
+                    && (w.langpair || activePair) === activePair
+                );
                 if (savedWord) {
                     savedWord.section = e.target.value;
                     saveWordsData();
@@ -758,20 +773,31 @@ function displayResult(data) {
                 m.definitions.forEach(def => {
                     const div = document.createElement('div');
                     div.className = 'definition-item';
-                    
-                    let synsHtml = '';
+
+                    const header = document.createElement('div');
+                    header.className = 'definition-header';
+                    const partOfSpeech = document.createElement('span');
+                    partOfSpeech.className = 'definition-pos';
+                    partOfSpeech.textContent = m.partOfSpeech || '';
+                    header.appendChild(partOfSpeech);
+
+                    const description = document.createElement('p');
+                    description.className = 'definition-desc';
+                    description.textContent = def;
+                    div.append(header, description);
+
                     if (m.synonyms && m.synonyms.length > 0) {
-                        const synsList = m.synonyms.slice(0, 5).map(s => `<span class="definition-syn-tag">${s}</span>`).join('');
-                        synsHtml = `<div class="definition-syns">Sinónimos: ${synsList}</div>`;
+                        const synonyms = document.createElement('div');
+                        synonyms.className = 'definition-syns';
+                        synonyms.append('Sinónimos: ');
+                        m.synonyms.slice(0, 5).forEach(synonym => {
+                            const tag = document.createElement('span');
+                            tag.className = 'definition-syn-tag';
+                            tag.textContent = synonym;
+                            synonyms.appendChild(tag);
+                        });
+                        div.appendChild(synonyms);
                     }
-                    
-                    div.innerHTML = `
-                        <div class="definition-header">
-                            <span class="definition-pos">${m.partOfSpeech}</span>
-                        </div>
-                        <p class="definition-desc">${def}</p>
-                        ${synsHtml}
-                    `;
                     definitionsList.appendChild(div);
                 });
             }
@@ -841,6 +867,16 @@ function renderTranslationAlternatives(data) {
                 }
             }
 
+            const selectedPair = data.langpair || state.translationPair || 'en|es';
+            const savedEntry = state.savedWords.find(word =>
+                word.wordEn.toLowerCase() === data.wordEn.toLowerCase()
+                && (word.langpair || selectedPair) === selectedPair
+            );
+            if (savedEntry) {
+                Object.assign(savedEntry, data);
+                await saveWordsData({ renderVocabularyList });
+            }
+
             renderTranslationAlternatives(data);
         });
 
@@ -871,11 +907,16 @@ function renderActiveWordExamples() {
         state.activeWordData.examples.forEach(ex => {
             const li = document.createElement('li');
             const typeClass = ex.type ? ex.type.toLowerCase() : 'afirmativo';
-            li.innerHTML = `
-                <span class="example-type ${typeClass}">${ex.type || 'Afirmativo'}</span>
-                <span class="example-en">${ex.en}</span>
-                <span class="example-es">${ex.es}</span>
-            `;
+            const type = document.createElement('span');
+            type.className = `example-type ${typeClass}`;
+            type.textContent = ex.type || 'Afirmativo';
+            const source = document.createElement('span');
+            source.className = 'example-en';
+            source.textContent = ex.en || '';
+            const translated = document.createElement('span');
+            translated.className = 'example-es';
+            translated.textContent = ex.es || '';
+            li.append(type, source, translated);
             examplesList.appendChild(li);
         });
     }
@@ -895,8 +936,11 @@ async function handleTenseChange(tense) {
     renderActiveWordExamples();
 }
 
-function updateSaveButtonState(wordEn) {
-    const isSaved = state.savedWords.some(w => w.wordEn.toLowerCase() === wordEn.toLowerCase());
+function updateSaveButtonState(wordEn, langpair = state.activeWordData?.langpair || state.translationPair || 'en|es') {
+    const isSaved = state.savedWords.some(w =>
+        w.wordEn.toLowerCase() === wordEn.toLowerCase()
+        && (w.langpair || langpair) === langpair
+    );
     if (isSaved) {
         btnSaveWord.innerHTML = '<i class="fa-solid fa-bookmark"></i> Guardada';
         btnSaveWord.classList.remove('btn-accent');
@@ -912,7 +956,11 @@ function updateSaveButtonState(wordEn) {
 
 // Toggle Save / Delete Word
 function toggleSaveWord(wordData) {
-    const index = state.savedWords.findIndex(w => w.wordEn.toLowerCase() === wordData.wordEn.toLowerCase());
+    const wordPair = wordData.langpair || state.translationPair || 'en|es';
+    const index = state.savedWords.findIndex(w =>
+        w.wordEn.toLowerCase() === wordData.wordEn.toLowerCase()
+        && (w.langpair || wordPair) === wordPair
+    );
     
     if (index >= 0) {
         state.savedWords.splice(index, 1);
@@ -927,7 +975,7 @@ function toggleSaveWord(wordData) {
         }
     }
     
-    updateSaveButtonState(wordData.wordEn);
+    updateSaveButtonState(wordData.wordEn, wordPair);
     saveWordsData({
         renderVocabularyList: renderVocabularyList
     });
@@ -955,9 +1003,11 @@ export function renderVocabularyList(filterText = '') {
     if (filtered.length === 0) {
         const emptyMsg = document.createElement('div');
         emptyMsg.className = 'empty-list-message';
-        emptyMsg.innerHTML = filterText 
-            ? `<p>No se encontraron palabras para "${filterText}".</p>` 
-            : `<p>No tienes palabras en esta sección.</p>`;
+        const message = document.createElement('p');
+        message.textContent = filterText
+            ? `No se encontraron palabras para "${filterText}".`
+            : 'No tienes palabras en esta sección.';
+        emptyMsg.appendChild(message);
         vocabularyList.appendChild(emptyMsg);
         return;
     }
@@ -975,23 +1025,35 @@ export function renderVocabularyList(filterText = '') {
             btnClear.style.display = 'block';
         });
 
-        item.innerHTML = `
-            <div class="vocab-item-word">
-                <span class="item-en">${w.wordEn}</span>
-                <span class="item-es">${w.wordEs}</span>
-            </div>
-            <div class="vocab-item-actions">
-                <button class="btn-delete-word" title="Eliminar palabra">
-                    <i class="fa-regular fa-trash-can"></i>
-                </button>
-            </div>
-        `;
+        const words = document.createElement('div');
+        words.className = 'vocab-item-word';
+        const sourceWord = document.createElement('span');
+        sourceWord.className = 'item-en';
+        sourceWord.textContent = w.wordEn;
+        const translatedWord = document.createElement('span');
+        translatedWord.className = 'item-es';
+        translatedWord.textContent = w.wordEs;
+        words.append(sourceWord, translatedWord);
 
-        const btnDelete = item.querySelector('.btn-delete-word');
+        const actions = document.createElement('div');
+        actions.className = 'vocab-item-actions';
+        const btnDelete = document.createElement('button');
+        btnDelete.className = 'btn-delete-word';
+        btnDelete.title = 'Eliminar palabra';
+        btnDelete.innerHTML = '<i class="fa-regular fa-trash-can"></i>';
+        actions.appendChild(btnDelete);
+        item.append(words, actions);
+
         btnDelete.addEventListener('click', () => {
-            state.savedWords = state.savedWords.filter(item => item.wordEn.toLowerCase() !== w.wordEn.toLowerCase());
-            if (state.activeWordData && state.activeWordData.wordEn.toLowerCase() === w.wordEn.toLowerCase()) {
-                updateSaveButtonState(w.wordEn);
+            const wordPair = w.langpair || state.translationPair || 'en|es';
+            state.savedWords = state.savedWords.filter(item => !(
+                item.wordEn.toLowerCase() === w.wordEn.toLowerCase()
+                && (item.langpair || wordPair) === wordPair
+            ));
+            if (state.activeWordData
+                && state.activeWordData.wordEn.toLowerCase() === w.wordEn.toLowerCase()
+                && (state.activeWordData.langpair || wordPair) === wordPair) {
+                updateSaveButtonState(w.wordEn, wordPair);
             }
             saveWordsData({
                 renderVocabularyList: renderVocabularyList

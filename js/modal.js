@@ -65,8 +65,8 @@ export function showConfirm(message, title = 'Shikionary') {
 
         if (!overlay) { resolve(confirm(message)); return; }
 
-        titleEl.textContent = message;
-        msgEl.textContent = title;
+        titleEl.textContent = title;
+        msgEl.textContent = message;
         overlay.style.display = 'flex';
 
         const done = (result) => {

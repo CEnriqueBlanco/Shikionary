@@ -1,6 +1,17 @@
 import { GOOGLE_SHEETS_URL, state } from './config.js';
 import { showAlert } from './modal.js';
 
+function parseStoredWords(rawValue) {
+    if (!rawValue) return [];
+    try {
+        const parsed = JSON.parse(rawValue);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        console.warn('Ignoring invalid locally stored vocabulary:', error.message);
+        return [];
+    }
+}
+
 function selectAmericanPronunciation(entries) {
     const safeEntries = Array.isArray(entries) ? entries : [];
     const phonetics = safeEntries.flatMap(entry => entry.phonetics || []);
@@ -17,6 +28,29 @@ function selectAmericanPronunciation(entries) {
         || '';
 
     return { phonetic, audio: audioItem?.audio || '' };
+}
+
+function inferSavedLangpair(word, fallbackPair) {
+    if (word.langpair) return word.langpair;
+
+    let audio = '';
+    try {
+        audio = typeof word.audio === 'string' ? decodeURIComponent(word.audio).toLocaleLowerCase() : '';
+    } catch {
+        audio = String(word.audio || '').toLocaleLowerCase();
+    }
+    const learnedLanguage = audio.includes('dictionaryapi.dev') || /\/en\//i.test(audio)
+        ? 'en'
+        : (audio.includes('wikimedia.org') ? 'de' : '');
+    if (!learnedLanguage) return fallbackPair;
+
+    const normalize = value => String(value || '').toLocaleLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]/gu, '');
+    const normalizedAudio = normalize(audio);
+    const source = normalize(word.wordEn);
+    const translation = normalize(word.wordEs);
+    if (translation && normalizedAudio.includes(translation)) return `es|${learnedLanguage}`;
+    if (source && normalizedAudio.includes(source)) return `${learnedLanguage}|es`;
+    return fallbackPair;
 }
 
 export async function fetchGermanWiktionaryAudio(word) {
@@ -244,7 +278,19 @@ export async function loadWordsData(callbacks = {}) {
             const url = `${GOOGLE_SHEETS_URL}?action=load&username=${encodeURIComponent(state.currentUser)}`;
             const response = await fetch(url);
             if (response.ok) {
-                state.savedWords = await response.json();
+                const remoteWords = await response.json();
+                if (!Array.isArray(remoteWords)) throw new Error('El servidor devolvió datos de vocabulario inválidos');
+                const previousBackup = parseStoredWords(localStorage.getItem(`kurisu_words_backup_${state.currentUser}`));
+                state.savedWords = remoteWords.map(word => {
+                    const cached = previousBackup.find(item =>
+                        item.wordEn?.toLocaleLowerCase() === word.wordEn?.toLocaleLowerCase()
+                        && item.wordEs?.toLocaleLowerCase() === word.wordEs?.toLocaleLowerCase()
+                    );
+                    return {
+                        ...word,
+                        langpair: word.langpair || cached?.langpair || inferSavedLangpair(word, state.translationPair || 'en|es')
+                    };
+                });
                 localStorage.setItem(`kurisu_words_backup_${state.currentUser}`, JSON.stringify(state.savedWords));
                 updateSyncStatus('synced');
             } else {
@@ -253,14 +299,17 @@ export async function loadWordsData(callbacks = {}) {
         } catch (err) {
             console.error('Error loading data from Google Sheets:', err);
             const backup = localStorage.getItem(`kurisu_words_backup_${state.currentUser}`);
-            state.savedWords = backup ? JSON.parse(backup) : [];
+            state.savedWords = parseStoredWords(backup);
             updateSyncStatus('error', 'Error de conexión con Google Sheets. Usando respaldo local.');
         }
     } else {
         // Local mode
         const localKey = state.currentUser ? `kurisu_local_words_${state.currentUser}` : 'kurisu_local_words';
         const localData = localStorage.getItem(localKey);
-        state.savedWords = localData ? JSON.parse(localData) : [];
+        state.savedWords = parseStoredWords(localData);
+        state.savedWords.forEach(word => {
+            word.langpair = inferSavedLangpair(word, state.translationPair || 'en|es');
+        });
         updateSyncStatus('local');
     }
     
@@ -522,7 +571,10 @@ export async function translateWord(word, callbacks = {}) {
         }
 
         // Check if this word is already saved to load its existing notes
-        const savedWord = state.savedWords.find(w => w.wordEn.toLowerCase() === word.toLowerCase());
+        const savedWord = state.savedWords.find(w =>
+            w.wordEn.toLowerCase() === word.toLowerCase()
+            && (w.langpair || langpair) === langpair
+        );
         const existingNotes = savedWord ? (savedWord.notes || '') : '';
 
         // Set the active word data

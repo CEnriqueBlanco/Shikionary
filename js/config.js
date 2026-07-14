@@ -1,5 +1,5 @@
 // CONFIGURACIÓN DE GOOGLE SHEETS (Sincronización en la nube)
-export const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycby3u0tDvYrgjmevA59kFKAHn3ePazoQML6e3ZkyePtXqnfBjjSZ6H87mGAH418ADmUf/exec';
+export const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycby_7725kBueBhzeqAounhv4DySflAVO1OrRsWMK-tp-bwc6KthM86J8vzg5_1QRC0tV/exec';
 
 // Global State object to share references between modules
 export const state = {
