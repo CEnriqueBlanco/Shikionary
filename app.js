@@ -26,6 +26,9 @@ const translationAlternatives = document.getElementById('translation-alternative
 const examplesList = document.getElementById('examples-list');
 const definitionsSection = document.getElementById('definitions-section');
 const definitionsList = document.getElementById('definitions-list');
+const conjugationSection = document.getElementById('conjugation-section');
+const conjugationList = document.getElementById('conjugation-list');
+const grammarTitle = document.getElementById('grammar-title');
 const saveSectionSelect = document.getElementById('save-section-select');
 const btnSaveWord = document.getElementById('btn-save-word');
 const searchSuggestions = document.getElementById('search-suggestions');
@@ -644,7 +647,37 @@ function initEventListeners() {
 
     // Flashcard Time Loop Review listeners
     const btnStartReview = document.getElementById('btn-start-review');
-    btnStartReview.addEventListener('click', () => startReviewSession());
+    const reviewDeckModal = document.getElementById('review-deck-modal');
+    const closeReviewDeckModal = () => { reviewDeckModal.style.display = 'none'; };
+    btnStartReview.addEventListener('click', () => {
+        const selectedPair = state.translationPair || 'en|es';
+        const reviewLanguage = selectedPair.includes('de') ? 'de' : 'en';
+        const deckSelect = document.getElementById('review-deck-select');
+        deckSelect.querySelectorAll('optgroup[data-review-language]').forEach(group => {
+            const shouldHide = group.dataset.reviewLanguage !== reviewLanguage;
+            group.hidden = shouldHide;
+            group.disabled = shouldHide;
+            group.querySelectorAll('option').forEach(option => {
+                option.hidden = shouldHide;
+                option.disabled = shouldHide;
+            });
+        });
+        const selectedDeckLanguage = deckSelect.value.split('-')[0];
+        if (deckSelect.value !== 'saved' && selectedDeckLanguage !== reviewLanguage) {
+            deckSelect.value = `${reviewLanguage}-a1`;
+        }
+        reviewDeckModal.style.display = 'flex';
+    });
+    document.getElementById('btn-close-review-deck-modal').addEventListener('click', closeReviewDeckModal);
+    document.getElementById('btn-cancel-review-deck').addEventListener('click', closeReviewDeckModal);
+    reviewDeckModal.addEventListener('click', (event) => {
+        if (event.target === reviewDeckModal) closeReviewDeckModal();
+    });
+    document.getElementById('btn-confirm-review-deck').addEventListener('click', () => {
+        const deck = document.getElementById('review-deck-select')?.value || 'saved';
+        closeReviewDeckModal();
+        startReviewSession({ deck, limit: 20 });
+    });
 
     const btnCloseReview = document.getElementById('btn-close-review');
     btnCloseReview.addEventListener('click', () => closeReviewSession());
@@ -806,6 +839,26 @@ function displayResult(data) {
     } else {
         definitionsList.innerHTML = '';
         definitionsSection.style.display = 'none';
+    }
+
+    conjugationList.innerHTML = '';
+    if (Array.isArray(data.conjugations) && data.conjugations.length > 0) {
+        grammarTitle.textContent = data.grammarTitle || 'Información gramatical';
+        data.conjugations.forEach(form => {
+            const item = document.createElement('div');
+            item.className = 'conjugation-item';
+            const label = document.createElement('span');
+            label.className = 'conjugation-label';
+            label.textContent = form.label;
+            const value = document.createElement('strong');
+            value.className = 'conjugation-value';
+            value.textContent = form.value;
+            item.append(label, value);
+            conjugationList.appendChild(item);
+        });
+        conjugationSection.style.display = 'block';
+    } else {
+        conjugationSection.style.display = 'none';
     }
 
     const tabs = document.querySelectorAll('.tab-tense');

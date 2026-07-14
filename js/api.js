@@ -129,6 +129,134 @@ export async function fetchAlternativeDescription(word, langCode) {
     }
 }
 
+const ENGLISH_IRREGULAR_VERBS = {
+    be: ['am / is / are', 'was / were', 'been'], begin: ['begins', 'began', 'begun'],
+    break: ['breaks', 'broke', 'broken'], bring: ['brings', 'brought', 'brought'],
+    buy: ['buys', 'bought', 'bought'], come: ['comes', 'came', 'come'],
+    do: ['does', 'did', 'done'], drink: ['drinks', 'drank', 'drunk'],
+    drive: ['drives', 'drove', 'driven'], eat: ['eats', 'ate', 'eaten'],
+    feel: ['feels', 'felt', 'felt'], find: ['finds', 'found', 'found'],
+    get: ['gets', 'got', 'gotten'], give: ['gives', 'gave', 'given'],
+    go: ['goes', 'went', 'gone'], have: ['has', 'had', 'had'],
+    hear: ['hears', 'heard', 'heard'], keep: ['keeps', 'kept', 'kept'],
+    know: ['knows', 'knew', 'known'], leave: ['leaves', 'left', 'left'],
+    make: ['makes', 'made', 'made'], meet: ['meets', 'met', 'met'],
+    read: ['reads', 'read', 'read'], run: ['runs', 'ran', 'run'],
+    say: ['says', 'said', 'said'], see: ['sees', 'saw', 'seen'],
+    sing: ['sings', 'sang', 'sung'], sit: ['sits', 'sat', 'sat'],
+    speak: ['speaks', 'spoke', 'spoken'], take: ['takes', 'took', 'taken'],
+    think: ['thinks', 'thought', 'thought'], write: ['writes', 'wrote', 'written']
+};
+
+function regularEnglishForms(verb) {
+    const doublesFinalConsonant = /^[^aeiou]*[aeiou][^aeiouwxy]$/i.test(verb);
+    const thirdPerson = /(?:s|sh|ch|x|z|o)$/i.test(verb) ? `${verb}es`
+        : (/[^aeiou]y$/i.test(verb) ? `${verb.slice(0, -1)}ies` : `${verb}s`);
+    const past = verb.endsWith('e') ? `${verb}d`
+        : (/[^aeiou]y$/i.test(verb) ? `${verb.slice(0, -1)}ied`
+            : (doublesFinalConsonant ? `${verb}${verb.slice(-1)}ed` : `${verb}ed`));
+    const gerund = verb.endsWith('ie') ? `${verb.slice(0, -2)}ying`
+        : (verb.endsWith('e') && !verb.endsWith('ee') ? `${verb.slice(0, -1)}ing`
+            : (doublesFinalConsonant ? `${verb}${verb.slice(-1)}ing` : `${verb}ing`));
+    return [thirdPerson, past, past, gerund];
+}
+
+export async function fetchVerbConjugations(word, langCode, partOfSpeech = '') {
+    const term = String(word || '').trim().toLocaleLowerCase(langCode);
+    const pos = String(partOfSpeech).toLowerCase();
+    if (!term) return { title: '', items: [] };
+
+    if (term.includes(' ')) {
+        return {
+            title: 'Información de la expresión',
+            items: [
+                { label: 'Tipo', value: 'Frase o expresión' },
+                { label: 'Extensión', value: `${term.split(/\s+/).length} palabras` },
+                { label: 'Consejo de uso', value: 'Apréndela como una unidad completa' }
+            ]
+        };
+    }
+
+    if (langCode === 'en') {
+        if (pos === 'noun') {
+            const irregularPlurals = { child: 'children', foot: 'feet', man: 'men', mouse: 'mice', person: 'people', tooth: 'teeth', woman: 'women' };
+            const uncountable = new Set(['advice', 'equipment', 'furniture', 'information', 'knowledge', 'money', 'news', 'research', 'rice', 'water']);
+            const plural = uncountable.has(term) ? 'normalmente incontable' : (irregularPlurals[term]
+                || (/(?:s|sh|ch|x|z)$/i.test(term) ? `${term}es`
+                    : (/[^aeiou]y$/i.test(term) ? `${term.slice(0, -1)}ies` : `${term}s`)));
+            const article = /^[aeiou]/i.test(term) ? `an ${term}` : `a ${term}`;
+            return { title: 'Información del sustantivo', items: [
+                { label: 'Singular', value: term }, { label: 'Plural', value: plural },
+                { label: 'Artículo indefinido', value: article }
+            ] };
+        }
+        if (pos === 'adjective') {
+            const irregular = { good: ['better', 'best'], bad: ['worse', 'worst'], far: ['farther / further', 'farthest / furthest'] }[term];
+            const short = term.length <= 6 && !term.includes('-');
+            const doublesFinal = /^[^aeiou]*[aeiou][^aeiouwxy]$/i.test(term);
+            const comparative = irregular?.[0] || (short ? (/[^aeiou]y$/i.test(term) ? `${term.slice(0, -1)}ier`
+                : (term.endsWith('e') ? `${term}r` : (doublesFinal ? `${term}${term.slice(-1)}er` : `${term}er`))) : `more ${term}`);
+            const superlative = irregular?.[1] || (short ? (/[^aeiou]y$/i.test(term) ? `${term.slice(0, -1)}iest`
+                : (term.endsWith('e') ? `${term}st` : (doublesFinal ? `${term}${term.slice(-1)}est` : `${term}est`))) : `most ${term}`);
+            return { title: 'Grados del adjetivo', items: [
+                { label: 'Positivo', value: term }, { label: 'Comparativo', value: comparative },
+                { label: 'Superlativo', value: superlative }
+            ] };
+        }
+        if (pos !== 'verb') return { title: 'Información gramatical', items: [{ label: 'Categoría', value: pos || 'Palabra' }] };
+        const verb = term;
+        const irregular = ENGLISH_IRREGULAR_VERBS[verb];
+        const [third, past, participle, gerund] = irregular
+            ? [...irregular, verb === 'be' ? 'being' : regularEnglishForms(verb)[3]]
+            : regularEnglishForms(verb);
+        return { title: 'Conjugación', items: [
+            { label: 'Infinitivo', value: `to ${verb}` },
+            { label: 'Presente (he/she/it)', value: third },
+            { label: 'Pasado', value: past },
+            { label: 'Participio pasado', value: participle },
+            { label: 'Gerundio', value: gerund }
+        ] };
+    }
+
+    if (langCode !== 'de') return { title: '', items: [] };
+    try {
+        const url = `https://de.wiktionary.org/w/api.php?action=parse&page=${encodeURIComponent(word)}&prop=wikitext&format=json&origin=*`;
+        const response = await fetch(url);
+        if (!response.ok) return { title: '', items: [] };
+        const source = (await response.json())?.parse?.wikitext?.['*'] || '';
+        const read = key => {
+            const match = source.match(new RegExp(`\\|\\s*${key}\\s*=\\s*([^\\n|}]*)`, 'i'));
+            return match?.[1]?.replace(/\[\[|\]\]/g, '').replace(/<[^>]+>/g, '').trim() || '';
+        };
+        if (/Deutsch Verb Übersicht/i.test(source)) return { title: 'Conjugación', items: [
+            { label: 'Infinitivo', value: read('Infinitiv') || word },
+            { label: 'Presente (ich)', value: read('Präsens_ich') },
+            { label: 'Presente (er/sie/es)', value: read('Präsens_er, sie, es') },
+            { label: 'Pasado (ich)', value: read('Präteritum_ich') },
+            { label: 'Participio II', value: read('Partizip II') },
+            { label: 'Imperativo', value: read('Imperativ Singular') }
+        ].filter(item => item.value && item.value !== '—') };
+        if (/Deutsch Substantiv Übersicht/i.test(source)) {
+            const genderCode = read('Genus');
+            const gender = { m: 'masculino (der)', f: 'femenino (die)', n: 'neutro (das)' }[genderCode] || genderCode;
+            return { title: 'Información del sustantivo', items: [
+                { label: 'Género y artículo', value: gender },
+                { label: 'Nominativo singular', value: read('Nominativ Singular') || word },
+                { label: 'Nominativo plural', value: read('Nominativ Plural') }
+            ].filter(item => item.value && item.value !== '—') };
+        }
+        if (/Deutsch Adjektiv Übersicht/i.test(source)) return { title: 'Grados del adjetivo', items: [
+            { label: 'Positivo', value: read('Positiv') || word },
+            { label: 'Comparativo', value: read('Komparativ') },
+            { label: 'Superlativo', value: read('Superlativ') }
+        ].filter(item => item.value && item.value !== '—') };
+        return { title: '', items: [] };
+    } catch (error) {
+        console.warn('German conjugation unavailable:', error.message);
+        return { title: '', items: [] };
+    }
+}
+
 export async function generatePairExamples(word, langpair, tense = 'present') {
     const fromCode = langpair.split('|')[0];
     const templates = {
@@ -578,6 +706,10 @@ export async function translateWord(word, callbacks = {}) {
         const existingNotes = savedWord ? (savedWord.notes || '') : '';
 
         // Set the active word data
+        const learnedLanguage = fromCode === 'es' ? toCode : fromCode;
+        const learnedWord = fromCode === 'es' ? translationText.trim() : word;
+        const grammar = await fetchVerbConjugations(learnedWord, learnedLanguage, partOfSpeech);
+
         state.activeWordData = {
             wordEn: word,
             wordEs: translationText,
@@ -589,6 +721,8 @@ export async function translateWord(word, callbacks = {}) {
             examples: examples,
             realExamples: realExamples,
             meanings: meanings,
+            conjugations: grammar.items,
+            grammarTitle: grammar.title,
             notes: existingNotes,
             langpair: langpair,
             section: savedWord ? (savedWord.section || 'General') : 'General'

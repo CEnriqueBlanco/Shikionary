@@ -652,6 +652,40 @@ body {
     margin-bottom: 10px;
 }
 
+.conjugation-section {
+    margin-top: 1.5rem;
+}
+
+.conjugation-section h3 {
+    margin-bottom: 0.85rem;
+}
+
+.conjugation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.7rem;
+}
+
+.conjugation-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-card);
+}
+
+.conjugation-label {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+.conjugation-value {
+    color: var(--accent-color);
+    font-size: 1rem;
+}
+
 .definitions-list {
     display: flex;
     flex-direction: column;
@@ -1961,10 +1995,68 @@ body {
 /* Review Footer Controls */
 .review-actions {
     display: grid;
-    grid-template-columns: 1fr 1.2fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 15px;
     padding-top: 15px;
     border-top: 1px solid var(--border-color);
+}
+
+.review-schedule-hint {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    text-align: center;
+    min-height: 1.2em;
+    margin-bottom: -8px;
+}
+
+.review-deck-modal-content {
+    width: min(92vw, 440px);
+}
+
+.review-deck-select {
+    width: 100%;
+    margin-top: 0.8rem;
+    padding: 0.85rem 1rem;
+    color: var(--text-main);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font: inherit;
+    cursor: pointer;
+    outline: none;
+}
+
+.review-level-note {
+    display: block;
+    margin-top: 0.35rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
+.review-deck-select:focus {
+    border-color: var(--border-focus);
+}
+
+.review-deck-modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.35fr;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+
+.review-deck-modal-actions button {
+    min-height: 44px;
+    border-radius: var(--radius-md);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+@media (max-width: 520px) {
+    .review-actions,
+    .review-deck-modal-actions {
+        grid-template-columns: 1fr;
+    }
 }
 
 .review-actions button {
