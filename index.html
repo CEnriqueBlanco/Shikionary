@@ -20,10 +20,6 @@
         <header class="main-header">
             <div class="logo-container">
                 <i class="fa-solid fa-flask logo-icon"></i>
-                <div class="logo-text">
-                    <h1>Future Gadget #9</h1>
-                    <span class="logo-sub">Vocabulary Translator</span>
-                </div>
             </div>
             
             <!-- Divergence Meter Widget (Steins;Gate inspired indicator of saved words) -->
@@ -46,11 +42,24 @@
             </div>
 
             <div class="header-actions">
+                <div id="current-user-badge" class="current-user-badge" title="Usuario conectado" style="display: none;">
+                    <i class="fa-solid fa-circle-user"></i>
+                    <span id="current-user-name"></span>
+                </div>
+                <select id="lang-pair-select" class="pomo-header-select" title="Dirección de traducción" style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-color); padding: 0.5rem; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.9rem; font-weight: 500;">
+                    <option value="en|es">Inglés ➔ Español</option>
+                    <option value="es|en">Español ➔ Inglés</option>
+                    <option value="de|es">Alemán ➔ Español</option>
+                    <option value="es|de">Español ➔ Alemán</option>
+                </select>
                 <button id="btn-start-review" class="btn-review-trigger" title="Repasar vocabulario (Bucle Temporal)">
                     <i class="fa-solid fa-clock-rotate-left"></i> <span>Repasar</span>
                 </button>
                 <button id="btn-theme-toggle" class="btn-icon" title="Cambiar Tema (Claro/Oscuro)">
                     <i class="fa-solid fa-moon"></i>
+                </button>
+                <button id="btn-logout" class="btn-icon" title="Cerrar Sesión" style="color: var(--error-color, #ff4a4a);">
+                    <i class="fa-solid fa-right-from-bracket"></i>
                 </button>
             </div>
         </header>
@@ -107,6 +116,7 @@
                         <div class="translation-section">
                             <h3>Traducción</h3>
                             <p id="result-word-es" class="translation-text">Palabra</p>
+                            <div id="translation-alternatives" class="translation-alternatives" style="display: none;" aria-label="Traducciones alternativas"></div>
                         </div>
 
                         <!-- Lab Notes (Mnemotecnias / Apuntes de Estudio) -->
@@ -241,7 +251,7 @@
                 <div class="login-header">
                     <i class="fa-solid fa-flask welcome-icon"></i>
                     <h2>Future Gadget Lab</h2>
-                    <p>Ingrese credenciales de acceso</p>
+                    <p id="login-instruction">Ingrese credenciales de acceso</p>
                 </div>
                 <form id="login-form">
                     <div class="form-group">
@@ -255,7 +265,13 @@
                     <div id="login-error" class="login-error-msg" style="display: none;">
                         Usuario o contraseña incorrectos.
                     </div>
-                    <button type="submit" class="btn-accent btn-login-submit">Acceder</button>
+                    <div id="login-success" class="login-success-msg" style="display: none; color: #00ff88; margin-bottom: 1rem; font-size: 0.9rem; text-align: center;">
+                        ¡Usuario registrado con éxito! Ya puedes iniciar sesión.
+                    </div>
+                    <button type="submit" id="btn-login-submit" class="btn-accent btn-login-submit">Acceder</button>
+                    <div class="login-toggle-mode" style="margin-top: 1rem; text-align: center; font-size: 0.9rem;">
+                        <a href="#" id="link-toggle-mode" style="color: var(--accent-color); text-decoration: none; border-bottom: 1px dashed var(--accent-color);">¿No tienes cuenta? Regístrate aquí</a>
+                    </div>
                 </form>
             </div>
         </div>
@@ -272,14 +288,17 @@
                 </header>
 
                 <div class="flashcard-wrapper">
-                    <div class="flashcard-container">
+                    <div class="flashcard-container" id="btn-flip-card-front" style="cursor: pointer;" title="Haz clic en cualquier parte de la tarjeta para voltearla">
                         <div class="flashcard-inner">
                             <!-- Front Side -->
-                            <div class="flashcard-side flashcard-front" id="btn-flip-card-front">
+                            <div class="flashcard-side flashcard-front">
                                 <div class="flashcard-content">
                                     <span class="flashcard-label">PALABRA EN INGLÉS</span>
                                     <h1 id="review-front-word">Word</h1>
                                     <span id="review-front-phonetic" class="phonetic">/wɜːd/</span>
+                                    <button id="review-btn-audio" class="btn-audio" title="Escuchar pronunciación" style="margin: 0.5rem auto; display: flex;" onclick="event.stopPropagation()">
+                                        <i class="fa-solid fa-volume-high"></i>
+                                    </button>
                                     <p class="click-to-flip-hint"><i class="fa-solid fa-repeat"></i> Haz clic en la tarjeta para revelarla</p>
                                 </div>
                             </div>
@@ -296,13 +315,13 @@
                                         <ul id="review-back-examples" class="review-examples-list"></ul>
                                         
                                         <h4>Notas de Laboratorio:</h4>
-                                        <textarea id="review-back-notes" class="review-notes-textarea" placeholder="Escribe notas de repaso aquí..."></textarea>
+                                        <textarea id="review-back-notes" class="review-notes-textarea" placeholder="Escribe notas de repaso aquí..." onclick="event.stopPropagation()"></textarea>
 
                                         <!-- Voice Practice inside review card -->
                                         <div class="review-voice-practice">
                                             <h4>Practicar Pronunciación:</h4>
                                             <div class="voice-practice-row">
-                                                <button id="review-btn-mic" class="btn-mic" title="Grabar pronunciación">
+                                                <button id="review-btn-mic" class="btn-mic" title="Grabar pronunciación" onclick="event.stopPropagation()">
                                                     <i class="fa-solid fa-microphone"></i> Probar Voz
                                                 </button>
                                                 <span id="review-voice-status" class="voice-status-feedback"></span>
@@ -317,16 +336,54 @@
                 </div>
 
                 <footer class="review-actions">
-                    <button id="btn-review-fail" class="btn-fail" title="No recuerdo esta palabra. Volver a encolar.">
-                        <i class="fa-solid fa-rotate-left"></i> Bucle Temporal
+                    <button id="btn-review-fail" class="btn-fail" title="No recuerdo esta palabra — se pondrá al final de la cola para repetirla.">
+                        <i class="fa-solid fa-rotate-left"></i> No la recuerdo
                     </button>
-                    <button id="btn-review-success" class="btn-success" title="¡Recordada con éxito! Remover de sesión.">
-                        <i class="fa-solid fa-circle-check"></i> Fijar Línea (Acierto)
+                    <button id="btn-review-success" class="btn-success" title="¡La recuerdo! — se elimina de esta sesión de repaso.">
+                        <i class="fa-solid fa-circle-check"></i> ¡La recuerdo!
                     </button>
                 </footer>
             </div>
         </div>
     </div>
+
+    <!-- Custom Alert Modal -->
+    <div id="custom-alert-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-content custom-dialog-content">
+            <div class="modal-header">
+                <h3>
+                    <i id="custom-alert-icon" class="fa-solid fa-circle-info"></i>
+                    <span id="custom-alert-title">Shikionary</span>
+                </h3>
+            </div>
+            <div class="modal-body">
+                <p id="custom-alert-message" class="custom-dialog-msg"></p>
+                <div class="custom-dialog-actions">
+                    <button id="custom-alert-ok" class="btn-accent">Aceptar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="custom-confirm-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-content custom-dialog-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="fa-solid fa-circle-question" style="color: var(--accent-red);"></i>
+                    <span id="custom-confirm-title">Shikionary</span>
+                </h3>
+            </div>
+            <div class="modal-body">
+                <p id="custom-confirm-message" class="custom-dialog-msg"></p>
+                <div class="custom-dialog-actions">
+                    <button id="custom-confirm-cancel" class="btn-secondary">Cancelar</button>
+                    <button id="custom-confirm-ok" class="btn-accent">Aceptar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Custom Pomodoro Time Modal -->
     <div id="pomo-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content pomo-modal-content">

@@ -170,7 +170,33 @@ body {
 .header-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 10px;
+}
+
+.current-user-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 180px;
+    padding: 7px 11px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-card);
+    color: var(--text-color);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.current-user-badge i {
+    color: var(--accent-color);
+}
+
+.current-user-badge span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .btn-review-trigger {
@@ -576,6 +602,31 @@ body {
     font-size: 1.4rem;
     font-weight: 500;
     color: var(--accent-red);
+}
+
+.translation-alternatives {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.translation-option {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-secondary);
+    color: var(--text-color);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.translation-option:hover,
+.translation-option.active {
+    border-color: var(--accent-red);
+    background: var(--accent-red);
+    color: #fff;
 }
 
 .definitions-section h3 {
@@ -1599,6 +1650,25 @@ body {
     margin-top: 20px;
 }
 
+/* ── Custom Alert / Confirm dialog ────────────────────────────────── */
+.custom-dialog-content {
+    max-width: 380px;
+    text-align: left;
+}
+
+.custom-dialog-msg {
+    color: var(--text-main);
+    font-size: 1rem;
+    line-height: 1.55;
+    margin: 0 0 20px;
+}
+
+.custom-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
 .pomo-modal-actions .btn-accent {
     background-color: var(--accent-red);
     color: white;
@@ -1911,4 +1981,3 @@ body {
     background-color: #1b5e20;
     box-shadow: 0 4px 8px rgba(46, 125, 50, 0.2);
 }
-

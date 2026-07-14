@@ -1,5 +1,5 @@
 import { state } from './js/config.js';
-import { loadWordsData, saveWordsData, translateWord, updateSyncStatus } from './js/api.js';
+import { loadWordsData, saveWordsData, translateWord, updateSyncStatus, registerUserAPI, loginUserAPI, generatePairExamples, fetchWordPronunciation } from './js/api.js';
 import { generateAndTranslateExamples, capitalize } from './js/nlp.js';
 import { updateDivergenceMeter } from './js/nixie.js';
 import { toggleSpeechRecognition } from './js/voice.js';
@@ -22,6 +22,7 @@ const resultPhonetic = document.getElementById('result-phonetic');
 const btnAudio = document.getElementById('btn-audio');
 const audioPronunciation = document.getElementById('audio-pronunciation');
 const resultWordEs = document.getElementById('result-word-es');
+const translationAlternatives = document.getElementById('translation-alternatives');
 const examplesList = document.getElementById('examples-list');
 const definitionsSection = document.getElementById('definitions-section');
 const definitionsList = document.getElementById('definitions-list');
@@ -42,6 +43,8 @@ const btnThemeToggle = document.getElementById('btn-theme-toggle');
 const loginScreen = document.getElementById('login-screen');
 const loginForm = document.getElementById('login-form');
 const loginError = document.getElementById('login-error');
+const currentUserBadge = document.getElementById('current-user-badge');
+const currentUserName = document.getElementById('current-user-name');
 
 // Music Player Elements
 const btnPlayPause = document.getElementById('btn-play-pause');
@@ -75,7 +78,51 @@ window.addEventListener('DOMContentLoaded', () => {
     loadMusicData(playlistSelect, musicTrackCount);
 });
 
-// Event Listeners Initialization
+// ─── Pronunciation Engine ─────────────────────────────────────────────────────
+// Uses a saved dictionary recording when available and otherwise uses the
+// browser's SpeechSynthesis API.
+//
+// @param {string} word         – The word/phrase to speak.
+// @param {string} langCode     – 'en', 'de', 'es', etc.
+// @param {string} [nativeAudio] – URL to a native MP3 (optional, only used for English).
+function speakWord(word, langCode, nativeAudio = '') {
+    if (!word) return;
+
+    // 1. Prefer a native DictionaryAPI/Wiktionary recording when available
+    if (nativeAudio) {
+        const audio = document.getElementById('audio-pronunciation');
+        if (audio) {
+            audio.src = nativeAudio;
+            audio.play().catch(() => speakWordTTS(word, langCode));
+            return;
+        }
+    }
+
+    // 2. Browser SpeechSynthesis (Google Translate TTS blocks browser CORS requests)
+    speakWordTTS(word, langCode);
+}
+
+// Helper: speak using Web Speech API with best available voice for given language
+function speakWordTTS(word, langCode) {
+    if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+        console.warn('Speech synthesis is not supported by this browser.');
+        return;
+    }
+
+    const localeMap = { en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', it: 'it-IT' };
+    const locale = localeMap[langCode] || 'en-US';
+    const utterance = new SpeechSynthesisUtterance(word);
+    utterance.lang = locale;
+    // Pick best available voice for this locale
+    const voices = window.speechSynthesis.getVoices();
+    const best = voices.find(v => v.lang === locale && !v.localService)
+              || voices.find(v => v.lang.startsWith(langCode));
+    if (best) utterance.voice = best;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+}
+
+
 function initEventListeners() {
     // Search form submit
     searchForm.addEventListener('submit', (e) => {
@@ -171,11 +218,11 @@ function initEventListeners() {
         }
     });
 
-    // Autocomplete suggestions as user types using Datamuse API
+    // Autocomplete suggestions as user types according to source language
     let suggestionsTimeout;
     searchInput.addEventListener('input', () => {
         const query = searchInput.value.trim();
-        btnClear.style.display = searchInput.value ? 'block' : 'none';
+        if (btnClear) btnClear.style.display = searchInput.value ? 'block' : 'none';
 
         clearTimeout(suggestionsTimeout);
         const lowerQuery = query.toLowerCase();
@@ -183,35 +230,70 @@ function initEventListeners() {
         if (lowerQuery.length > 0) {
             suggestionsTimeout = setTimeout(async () => {
                 try {
-                    const response = await fetch(`https://api.datamuse.com/sug?s=${encodeURIComponent(lowerQuery)}`);
-                    if (response.ok) {
-                        const matches = await response.json();
-                        const slicedMatches = matches.slice(0, 5);
-                        
-                        if (slicedMatches.length > 0) {
-                            searchSuggestions.innerHTML = '';
-                            slicedMatches.forEach(match => {
-                                const div = document.createElement('div');
-                                div.className = 'suggestion-item';
-                                div.innerHTML = `
-                                    <span>${match.word}</span>
-                                    <span class="suggestion-translation"><i class="fa-solid fa-language"></i> Traducir</span>
-                                `;
-                                div.addEventListener('click', () => {
-                                    searchInput.value = match.word;
-                                    searchSuggestions.style.display = 'none';
-                                    translateWord(match.word, {
-                                        showLoading: showLoading,
-                                        generateAndTranslateExamples: generateAndTranslateExamples,
-                                        displayResult: displayResult
-                                    });
-                                });
-                                searchSuggestions.appendChild(div);
-                            });
-                            searchSuggestions.style.display = 'block';
-                        } else {
-                            searchSuggestions.style.display = 'none';
+                    const pair = state.translationPair || 'en|es';
+                    const fromLang = pair.split('|')[0];
+                    let slicedMatches = [];
+
+                    if (fromLang === 'en') {
+                        // Use Datamuse for English
+                        const response = await fetch(`https://api.datamuse.com/sug?s=${encodeURIComponent(lowerQuery)}`);
+                        if (response.ok) {
+                            const matches = await response.json();
+                            slicedMatches = matches.slice(0, 5);
                         }
+                    } else {
+                        // Use Wikipedia OpenSearch for other languages (German/Spanish)
+                        const wikiUrl = `https://${fromLang}.wikipedia.org/w/api.php?action=opensearch&format=json&limit=10&search=${encodeURIComponent(lowerQuery)}&origin=*`;
+                        const response = await fetch(wikiUrl);
+                        if (response.ok) {
+                            const wikiData = await response.json();
+                            const suggestionsList = wikiData[1] || [];
+                            const seenSuggestions = new Set();
+                            slicedMatches = suggestionsList
+                                // Wikipedia adds article qualifiers such as
+                                // "Madera (material)"; they are not part of the word.
+                                .map(item => item.replace(/\s*\([^)]*\)\s*$/u, '').trim())
+                                .filter(item => {
+                                    const normalized = item.toLocaleLowerCase(fromLang);
+                                    if (!item || seenSuggestions.has(normalized)) return false;
+                                    seenSuggestions.add(normalized);
+                                    return true;
+                                })
+                                .sort((a, b) => {
+                                    const aExact = a.toLocaleLowerCase(fromLang) === lowerQuery;
+                                    const bExact = b.toLocaleLowerCase(fromLang) === lowerQuery;
+                                    return Number(bExact) - Number(aExact);
+                                })
+                                .slice(0, 5)
+                                .map(item => ({ word: item }));
+                        }
+                    }
+                    
+                    if (slicedMatches.length > 0) {
+                        searchSuggestions.innerHTML = '';
+                        slicedMatches.forEach(match => {
+                            const div = document.createElement('div');
+                            div.className = 'suggestion-item';
+                            const wordSpan = document.createElement('span');
+                            wordSpan.textContent = match.word;
+                            const actionSpan = document.createElement('span');
+                            actionSpan.className = 'suggestion-translation';
+                            actionSpan.innerHTML = '<i class="fa-solid fa-language"></i> Traducir';
+                            div.append(wordSpan, actionSpan);
+                            div.addEventListener('click', () => {
+                                searchInput.value = match.word;
+                                searchSuggestions.style.display = 'none';
+                                translateWord(match.word, {
+                                    showLoading: showLoading,
+                                    generateAndTranslateExamples: generateAndTranslateExamples,
+                                    displayResult: displayResult
+                                });
+                            });
+                            searchSuggestions.appendChild(div);
+                        });
+                        searchSuggestions.style.display = 'block';
+                    } else {
+                        searchSuggestions.style.display = 'none';
                     }
                 } catch (err) {
                     console.error('Error fetching suggestions:', err);
@@ -243,12 +325,21 @@ function initEventListeners() {
         }
     });
 
-    // Audio button click
+    // Audio button click — always pronounces in the FOREIGN language (English or German), never Spanish
     btnAudio.addEventListener('click', () => {
-        const audioPronunciation = document.getElementById('audio-pronunciation');
-        if (audioPronunciation && audioPronunciation.src) {
-            audioPronunciation.play().catch(err => console.log('Audio playback error:', err));
-        }
+        if (!state.activeWordData) return;
+        const pair = state.translationPair || 'en|es';
+        const fromCode = pair.split('|')[0];
+        const toCode   = pair.split('|')[1];
+
+        // If source is Spanish, speak the TRANSLATION (foreign word); otherwise speak the source word
+        const isSrcSpanish = fromCode === 'es';
+        const ttsText = isSrcSpanish
+            ? (state.activeWordData.wordEs || '')
+            : (state.activeWordData.wordEn || '');
+        const ttsLangCode = isSrcSpanish ? toCode : fromCode; // 'en' or 'de'
+
+        speakWord(ttsText, ttsLangCode, state.activeWordData.audio);
     });
 
     // Filtering vocabulary list
@@ -310,19 +401,131 @@ function initEventListeners() {
         }
     });
 
-    // Login form submit handler
-    loginForm.addEventListener('submit', (e) => {
+    // Login Mode toggle (Register vs Login)
+    let authMode = 'login'; // Can be 'login' or 'register'
+    const linkToggleMode = document.getElementById('link-toggle-mode');
+    const loginInstruction = document.getElementById('login-instruction');
+    const btnLoginSubmit = document.getElementById('btn-login-submit');
+    const loginSuccessMsg = document.getElementById('login-success');
+
+    if (linkToggleMode) {
+        linkToggleMode.addEventListener('click', (e) => {
+            e.preventDefault();
+            loginError.style.display = 'none';
+            if (loginSuccessMsg) loginSuccessMsg.style.display = 'none';
+            if (authMode === 'login') {
+                authMode = 'register';
+                loginInstruction.textContent = 'Cree una nueva cuenta';
+                btnLoginSubmit.textContent = 'Registrarse';
+                linkToggleMode.textContent = '¿Ya tienes cuenta? Inicia sesión aquí';
+            } else {
+                authMode = 'login';
+                loginInstruction.textContent = 'Ingrese credenciales de acceso';
+                btnLoginSubmit.textContent = 'Acceder';
+                linkToggleMode.textContent = '¿No tienes cuenta? Regístrate aquí';
+            }
+        });
+    }
+
+    // Login/Register form submit handler
+    loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        loginError.style.display = 'none';
+        if (loginSuccessMsg) loginSuccessMsg.style.display = 'none';
+        
         const username = document.getElementById('login-username').value.trim();
         const password = document.getElementById('login-password').value.trim();
         
-        if (username === 'Shike' && password === 'gasaipedro1') {
-            localStorage.setItem('shike_authenticated', 'true');
-            loginScreen.style.display = 'none';
-        } else {
+        if (!username || !password) return;
+        
+        btnLoginSubmit.disabled = true;
+        const originalText = btnLoginSubmit.textContent;
+        btnLoginSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando...';
+
+        try {
+            if (authMode === 'register') {
+                const res = await registerUserAPI(username, password);
+                if (res && res.success) {
+                    if (loginSuccessMsg) {
+                        loginSuccessMsg.style.display = 'block';
+                        loginSuccessMsg.textContent = res.message || 'Usuario registrado con éxito.';
+                    }
+                    // Switch back to login mode automatically
+                    authMode = 'login';
+                    loginInstruction.textContent = 'Ingrese credenciales de acceso';
+                    btnLoginSubmit.textContent = 'Acceder';
+                    linkToggleMode.textContent = '¿No tienes cuenta? Regístrate aquí';
+                    document.getElementById('login-password').value = '';
+                } else {
+                    loginError.style.display = 'block';
+                    loginError.textContent = res ? res.message : 'Error al registrar usuario.';
+                }
+            } else {
+                const res = await loginUserAPI(username, password);
+                if (res && res.success) {
+                    localStorage.setItem('shike_user', res.username);
+                    state.currentUser = res.username;
+                    updateCurrentUserUI();
+                    
+                    if (res.language) {
+                        state.activeLanguage = res.language;
+                        localStorage.setItem('shike_lang', res.language);
+                    }
+                    
+                    updateLanguageUI();
+                    
+                    // Load the user's specific vocabulary list
+                    await loadWordsData({
+                        updateSectionDropdowns: updateSectionDropdowns,
+                        renderVocabularyList: renderVocabularyList
+                    });
+
+                    loginScreen.style.display = 'none';
+                } else {
+                    loginError.style.display = 'block';
+                    loginError.textContent = res ? res.message : 'Usuario o contraseña incorrectos.';
+                }
+            }
+        } catch (err) {
+            console.error(err);
             loginError.style.display = 'block';
+            loginError.textContent = 'Error de conexión con el servidor.';
+        } finally {
+            btnLoginSubmit.disabled = false;
+            btnLoginSubmit.textContent = originalText;
         }
     });
+
+    // Language Pair Selector Listener
+    const langPairSelect = document.getElementById('lang-pair-select');
+    if (langPairSelect) {
+        langPairSelect.addEventListener('change', (e) => {
+            state.translationPair = e.target.value;
+            localStorage.setItem('shike_lang_pair', state.translationPair);
+            updateLanguageUI();
+            
+            // Clear current card search suggestions and inputs if switching language
+            searchInput.value = '';
+            if (btnClear) btnClear.style.display = 'none';
+            welcomeCard.style.display = 'block';
+            resultCard.style.display = 'none';
+        });
+    }
+
+    // Logout Listener
+    const btnLogout = document.getElementById('btn-logout');
+    if (btnLogout) {
+        btnLogout.addEventListener('click', () => {
+            localStorage.removeItem('shike_user');
+            state.currentUser = '';
+            updateCurrentUserUI();
+            state.savedWords = [];
+            renderVocabularyList();
+            loginScreen.style.display = 'flex';
+            document.getElementById('login-username').value = '';
+            document.getElementById('login-password').value = '';
+        });
+    }
 
     // Music Player Event listeners
     btnPlayPause.addEventListener('click', () => togglePlayPause(btnPlayPause, playlistSelect, currentTrackNameEl));
@@ -455,11 +658,45 @@ function loadSettings() {
         if (icon) icon.className = 'fa-solid fa-sun';
     }
 
-    const isAuthenticated = localStorage.getItem('shike_authenticated');
-    if (isAuthenticated === 'true') {
+    updateLanguageUI();
+    updateCurrentUserUI();
+
+    if (state.currentUser) {
         loginScreen.style.display = 'none';
     } else {
         loginScreen.style.display = 'flex';
+    }
+}
+
+function updateCurrentUserUI() {
+    if (!currentUserBadge || !currentUserName) return;
+
+    if (state.currentUser) {
+        currentUserName.textContent = state.currentUser;
+        currentUserBadge.style.display = 'inline-flex';
+    } else {
+        currentUserName.textContent = '';
+        currentUserBadge.style.display = 'none';
+    }
+}
+
+// Update UI elements depending on active language pair
+function updateLanguageUI() {
+    const langPairSelect = document.getElementById('lang-pair-select');
+    if (langPairSelect) {
+        langPairSelect.value = state.translationPair;
+    }
+    
+    // Set appropriate placeholder based on translation direction
+    const pair = state.translationPair || 'en|es';
+    const fromLang = pair.split('|')[0];
+    
+    if (fromLang === 'de') {
+        searchInput.placeholder = 'Escribe una palabra en alemán...';
+    } else if (fromLang === 'es') {
+        searchInput.placeholder = 'Escribe una palabra en español...';
+    } else {
+        searchInput.placeholder = 'Escribe una palabra en inglés...';
     }
 }
 
@@ -479,17 +716,29 @@ function showLoading(isLoading) {
 // Display Result Card
 function displayResult(data) {
     resultWordEn.textContent = data.wordEn;
-    resultPhonetic.textContent = data.phonetic || '/--/';
+    
+    // Only show phonetic if it has real data
+    if (data.phonetic && data.phonetic.trim() !== '') {
+        resultPhonetic.textContent = data.phonetic;
+        resultPhonetic.style.display = 'inline';
+    } else {
+        resultPhonetic.textContent = '';
+        resultPhonetic.style.display = 'none';
+    }
+    
     resultWordEs.textContent = data.wordEs;
+    renderTranslationAlternatives(data);
     
     const audioPronunciation = document.getElementById('audio-pronunciation');
     if (data.audio) {
         audioPronunciation.src = data.audio;
-        btnAudio.style.display = 'inline-flex';
+        btnAudio.title = 'Escuchar pronunciación';
     } else {
         audioPronunciation.removeAttribute('src');
-        btnAudio.style.display = 'none';
+        btnAudio.title = 'Escuchar pronunciación (síntesis de voz)';
     }
+    // Always show audio button — falls back to browser text-to-speech for non-English
+    btnAudio.style.display = 'inline-flex';
 
     // Populate Lab Notes textarea
     labNotesTextarea.value = data.notes || '';
@@ -550,6 +799,53 @@ function displayResult(data) {
     resultCard.style.display = 'block';
 }
 
+function renderTranslationAlternatives(data) {
+    if (!translationAlternatives) return;
+    translationAlternatives.innerHTML = '';
+
+    const alternatives = [...new Set([data.wordEs, ...(data.translationAlternatives || [])].filter(Boolean))];
+    if (alternatives.length < 2) {
+        translationAlternatives.style.display = 'none';
+        return;
+    }
+
+    alternatives.forEach(alternative => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `translation-option${alternative === data.wordEs ? ' active' : ''}`;
+        button.textContent = alternative;
+        button.addEventListener('click', async () => {
+            data.wordEs = alternative;
+            resultWordEs.textContent = alternative;
+
+            const [fromCode, toCode] = (data.langpair || state.translationPair || 'en|es').split('|');
+            if (fromCode === 'es' && (toCode === 'en' || toCode === 'de')) {
+                data.phonetic = '';
+                data.audio = '';
+                const pronunciation = await fetchWordPronunciation(alternative, toCode);
+                data.phonetic = pronunciation.phonetic;
+                data.audio = pronunciation.audio;
+                if (pronunciation.phonetic) {
+                    resultPhonetic.textContent = pronunciation.phonetic;
+                    resultPhonetic.style.display = 'inline';
+                } else {
+                    resultPhonetic.textContent = '';
+                    resultPhonetic.style.display = 'none';
+                }
+                if (pronunciation.audio) {
+                    audioPronunciation.src = pronunciation.audio;
+                } else {
+                    audioPronunciation.removeAttribute('src');
+                }
+            }
+
+            renderTranslationAlternatives(data);
+        });
+        translationAlternatives.appendChild(button);
+    });
+    translationAlternatives.style.display = 'flex';
+}
+
 // Render only the examples list on the result card
 function renderActiveWordExamples() {
     examplesList.innerHTML = '';
@@ -573,7 +869,10 @@ async function handleTenseChange(tense) {
     
     examplesList.innerHTML = '<li style="border-left: none; text-align: center; background: none; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Generando ejemplos en ' + (tense === 'present' ? 'presente' : tense === 'past' ? 'pasado' : 'futuro') + '...</li>';
     
-    const examples = await generateAndTranslateExamples(state.activeWordData.wordEn, state.activeWordData.partOfSpeech, tense, state.activeWordData.baseSentence);
+    const langpair = state.activeWordData.langpair || state.translationPair || 'en|es';
+    const examples = langpair === 'en|es'
+        ? await generateAndTranslateExamples(state.activeWordData.wordEn, state.activeWordData.partOfSpeech, tense, state.activeWordData.baseSentence)
+        : await generatePairExamples(state.activeWordData.wordEn, langpair, tense);
     state.activeWordData.examples = examples;
     renderActiveWordExamples();
 }

@@ -1,4 +1,5 @@
 import { state } from './config.js';
+import { showAlert } from './modal.js';
 
 let timerId = null;
 let timeLeft = 25 * 60; // 25 minutes default
@@ -70,7 +71,7 @@ export function initPomodoro() {
                 updateDisplay();
                 hideModal();
             } else {
-                alert("Por favor, ingresa un número de minutos válido entre 1 y 180.");
+                showAlert('Por favor, ingresa un número de minutos válido entre 1 y 180.', 'Tiempo inválido', 'warning');
             }
         });
 
@@ -140,14 +141,14 @@ export function initPomodoro() {
                         short: "El descanso corto ha terminado. ¡A estudiar!",
                         long: "El descanso largo ha terminado. ¡Regresemos al trabajo!"
                     };
-                    alert(messages[currentMode]);
-                    
-                    // Auto switch modes
-                    if (currentMode === 'work') {
-                        switchMode('short');
-                    } else {
-                        switchMode('work');
-                    }
+                    showAlert(messages[currentMode], '⏱ Pomodoro', 'info').then(() => {
+                        // Auto switch modes
+                        if (currentMode === 'work') {
+                            switchMode('short');
+                        } else {
+                            switchMode('work');
+                        }
+                    });
                 }
             }, 1000);
         }

@@ -1,6 +1,7 @@
 import { state } from './config.js';
 import { toggleSpeechRecognition } from './voice.js';
 import { saveWordsData } from './api.js';
+import { showAlert } from './modal.js';
 
 let reviewQueue = [];
 let currentReviewIndex = 0;
@@ -8,7 +9,7 @@ let isCardFlipped = false;
 
 export function startReviewSession(onCloseCallback) {
     if (state.savedWords.length === 0) {
-        alert('No tienes palabras guardadas para repasar.');
+        showAlert('No tienes palabras guardadas para repasar.', 'Time Loop Review', 'warning');
         return;
     }
 
@@ -19,7 +20,7 @@ export function startReviewSession(onCloseCallback) {
     }
 
     if (wordsToReview.length === 0) {
-        alert('No hay palabras guardadas en la sección seleccionada.');
+        showAlert('No hay palabras guardadas en la sección seleccionada.', 'Time Loop Review', 'warning');
         return;
     }
 
@@ -81,9 +82,10 @@ export function markReviewWord(success, callbacks = {}) {
 
     // Check if review finished
     if (reviewQueue.length === 0) {
-        alert('¡Línea Temporal corregida con éxito! Has repasado todas las palabras.');
-        closeReviewSession();
-        if (callbacks.renderVocabularyList) callbacks.renderVocabularyList();
+        showAlert('¡Línea Temporal corregida con éxito! Has repasado todas las palabras.', '¡Misión Completada! ✓', 'success').then(() => {
+            closeReviewSession();
+            if (callbacks.renderVocabularyList) callbacks.renderVocabularyList();
+        });
         return;
     }
 
@@ -118,11 +120,77 @@ function renderCurrentReviewCard() {
         progressEl.textContent = `Palabras pendientes: ${reviewQueue.length}`;
     }
 
+    // Determine source language from the word's saved langpair or fall back to current state
+    const wordPair = word.langpair || localStorage.getItem('shike_lang_pair') || 'en|es';
+    const fromCode = wordPair.split('|')[0];
+    const toCode   = wordPair.split('|')[1];
+    const langLabels = { en: 'INGLÉS', de: 'ALEMÁN', es: 'ESPAÑOL', fr: 'FRANCÉS', it: 'ITALIANO' };
+    const ttsLang   = { en: 'en-US',  de: 'de-DE',  es: 'es-ES',  fr: 'fr-FR',  it: 'it-IT' };
+    const langLabel = langLabels[fromCode] || fromCode.toUpperCase();
+
+    // The audio ALWAYS speaks the foreign language (English or German), NEVER Spanish.
+    // Rule: if source is Spanish, speak the TRANSLATION in target language.
+    //       otherwise speak the source word in source language.
+    const isSrcSpanish = fromCode === 'es';
+    const ttsText  = isSrcSpanish ? word.wordEs  : word.wordEn;
+    const ttsCode  = isSrcSpanish ? (ttsLang[toCode]   || 'en-US')
+                                  : (ttsLang[fromCode] || 'en-US');
+
+    // Update front card label to show correct language
+    const frontLabel = document.querySelector('.flashcard-front .flashcard-label');
+    if (frontLabel) frontLabel.textContent = `PALABRA EN ${langLabel}`;
+
     // Render Front Card
     const frontWord = document.getElementById('review-front-word');
     const frontPhonetic = document.getElementById('review-front-phonetic');
     if (frontWord) frontWord.textContent = word.wordEn;
-    if (frontPhonetic) frontPhonetic.textContent = word.phonetic || '/--/';
+
+    // Only show phonetic if there's real data
+    if (frontPhonetic) {
+        if (word.phonetic && word.phonetic.trim() !== '' && word.phonetic !== '/--/') {
+            frontPhonetic.textContent = word.phonetic;
+            frontPhonetic.style.display = 'inline';
+        } else {
+            frontPhonetic.textContent = '';
+            frontPhonetic.style.display = 'none';
+        }
+    }
+
+    // Wire up audio button — always pronounces in English or German, never Spanish
+    const reviewAudioBtn = document.getElementById('review-btn-audio');
+    if (reviewAudioBtn) {
+        const newAudioBtn = reviewAudioBtn.cloneNode(true);
+        reviewAudioBtn.parentNode.replaceChild(newAudioBtn, reviewAudioBtn);
+        newAudioBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+
+            const speakWithBrowser = () => {
+                if (!ttsText || !('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+                    console.warn('Speech synthesis is not supported by this browser.');
+                    return;
+                }
+
+                const language = ttsCode.split('-')[0];
+                const utterance = new SpeechSynthesisUtterance(ttsText);
+                utterance.lang = ttsCode;
+                const voices = window.speechSynthesis.getVoices();
+                const best = voices.find(v => v.lang === ttsCode && !v.localService)
+                          || voices.find(v => v.lang.startsWith(language));
+                if (best) utterance.voice = best;
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(utterance);
+            };
+
+            // Prefer a saved DictionaryAPI/Wiktionary recording.
+            if (word.audio) {
+                const audio = new Audio(word.audio);
+                audio.play().catch(speakWithBrowser);
+                return;
+            }
+
+            speakWithBrowser();
+        });
+    }
 
     // Render Back Card
     const backTranslation = document.getElementById('review-back-translation');

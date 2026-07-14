@@ -1,4 +1,5 @@
 // Voice Recognition module for pronunciation practice
+import { showAlert } from './modal.js';
 let recognition = null;
 let isListening = false;
 
@@ -20,7 +21,7 @@ export function initSpeechRecognition() {
 export function toggleSpeechRecognition(targetWord, btnMic, onResult) {
     if (!recognition) {
         if (!initSpeechRecognition()) {
-            alert('El reconocimiento de voz no está soportado en este navegador. Te recomendamos usar Google Chrome.');
+            showAlert('El reconocimiento de voz no está soportado en este navegador. Te recomendamos usar Google Chrome.', 'Voz no compatible', 'error');
             return;
         }
     }
@@ -57,7 +58,7 @@ export function toggleSpeechRecognition(targetWord, btnMic, onResult) {
         let errorMsg = 'Error al grabar.';
         if (event.error === 'no-speech') errorMsg = 'No se detectó voz. Inténtalo de nuevo.';
         else if (event.error === 'not-allowed') errorMsg = 'Permiso denegado para usar el micrófono.';
-        alert(errorMsg);
+        showAlert(errorMsg, 'Error de Grabación', 'error');
     };
 
     recognition.onend = () => {
